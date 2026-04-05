@@ -1,0 +1,13 @@
+[{
+  "name": "Classic Sourdough",
+  "yield": "1 Loaf",
+  "totalFlourAmount": 500.0,
+  "sortOrder": 0,
+  "ingredients": [
+    { "name": "Bread Flour", "bakersPercent": 100.0, "sortOrder": 0, "type": "FLOUR" },
+    { "name": "Water", "bakersPercent": 70.0, "sortOrder": 1, "type": "HYDRATION" },
+    { "name": "Sourdough Starter", "bakersPercent": 20.0, "sortOrder": 2, "type": "STARTER" },
+    { "name": "Salt", "bakersPercent": 2.0, "sortOrder": 3, "type": "SALT" }
+  ]
+}
+]
