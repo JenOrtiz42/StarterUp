@@ -109,32 +109,6 @@ fun HomeScreenContent(
         }
 
         item {
-            DoughSectionHeader(text = "Recipes")
-            Spacer(modifier = Modifier.height(8.dp))
-        }
-
-        if (recipes.isEmpty()) {
-            item {
-                Text(
-                    text = "No recipes found. Add one to get started!",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(vertical = 8.dp)
-                )
-            }
-        } else {
-            items(recipes) { recipeWrapper ->
-                RecipeItem(
-                    recipeWrapper = recipeWrapper,
-                    onClick = { onRecipeClick(recipeWrapper.recipe.id) },
-                    onEditClick = { onEditRecipe(recipeWrapper.recipe.id) },
-                    onDeleteClick = { onDeleteRecipe(recipeWrapper.recipe) }
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-            }
-        }
-
-        item {
             //todo: remove later
             Button(
                 onClick = onAddDevRecipe,
