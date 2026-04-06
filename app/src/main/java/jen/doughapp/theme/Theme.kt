@@ -25,7 +25,7 @@ private val LightColorScheme = lightColorScheme(
     tertiary = Brown40,
     onTertiary = Color.White,
 
-    background = WarmCream98,
+    background = WarmBackground100,
     onBackground = Red50,
 
     surface = Color.White,

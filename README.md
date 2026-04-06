@@ -48,7 +48,7 @@ This project is built with modern Android standards to ensure scalability and ma
 ## Screenshots
 |                Main Screen                 |                Edit Recipe                 |                 Recipe Detail                  |                  Levain Planner                  |
 |:------------------------------------------:|:------------------------------------------:|:----------------------------------------------:|:------------------------------------------------:|
-| ![Main Screen](docs/images/MainScreen.jpg) | ![Edit Recipe](docs/images/EditRecipe.jpg) | ![Recipe Detail](docs/images/RecipeDetail.jpg) | ![Levain Planner](docs/images/LevainPlanner.jpg) |
+| ![Main Screen](docs/images/MainScreen.png) | ![Edit Recipe](docs/images/EditRecipe.png) | ![Recipe Detail](docs/images/RecipeDetail.png) | ![Levain Planner](docs/images/LevainPlanner.png) |
 
 ---
 
