@@ -46,9 +46,9 @@ This project is built with modern Android standards to ensure scalability and ma
 ---
 
 ## Screenshots
-|        Recipe List        |      Recipe Detail        | Levain Planner |
-|:-------------------------:|:-------------------------:|:--------------:|
-| ![Screenshot 1](url_here) | ![Screenshot 2](url_here) |                |
+|                Main Screen                 |                Edit Recipe                 |                 Recipe Detail                  |                  Levain Planner                  |
+|:------------------------------------------:|:------------------------------------------:|:----------------------------------------------:|:------------------------------------------------:|
+| ![Main Screen](docs/images/MainScreen.jpg) | ![Edit Recipe](docs/images/EditRecipe.jpg) | ![Recipe Detail](docs/images/RecipeDetail.jpg) | ![Levain Planner](docs/images/LevainPlanner.jpg) |
 
 ---
 
@@ -90,8 +90,10 @@ But hey, it never gets tired of questions, "Explain this," "Explain that," "Why 
 
 Another thing I learned is that the Gemini Agent is really good at messing up gradle files if you let it get its grubby agentic hands on those. It is not (as of April 2026) a good package manager. Now, it may be a good package manager next month, or next year, though I'm not holding my breath.
 
-I didn't use Gemini exclusively. As I mentioned, screen layouts were inspired by Stitch, though I ended up changing quite a lot. I used Adobe Firefly to generate me some vectors to use as an icon/logo for this project. It came up with some pretty neat-looking stuff, but flawed for my use case. I needed something more simplified with more contrast, so I used the AI as a starting point and edited it.
+I didn't use Gemini exclusively. As I mentioned, screen layouts were inspired by Stitch, though I ended up changing quite a lot. I used Adobe Firefly to generate me some vectors to use as an icon/logo for this project. It came up with some pretty neat-looking stuff, but flawed for my use case. I needed something more simplified with more contrast, so I used the AI as a starting point and edited it:
 
-
+|                   AI-generated                   | My Edit                                              |
+|:------------------------------------------------:|:-----------------------------------------------------|
+| ![AI logo](docs/images/sourdoughvector_orig.png) | ![Edited Logo](docs/images/sourdoughvector_edit.png) |
 
 All in all, it feels like I took a crash course in Android and Jetpack Compose with a personal tutor. A tutor that no doubt has STILL omitted a lot of things that are common knowledge for, you know, actual Android developers... but that's what Reddit, Medium, and StackOverflow are for.
