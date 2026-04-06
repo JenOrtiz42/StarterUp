@@ -8,7 +8,7 @@ But I had 0 knowledge of Android. Never heard of Jetpack Compose or Room or Mate
 
 Then one day I was trying out Google Stitch and had a conversation. It quickly made the sourdough app in my imagination seem real. I could practically taste the well-calculated sourdough I would bake! This would be the perfect chance to intensely use AI to accelerate development, too. So I downloaded Android Studio and got started.
 
-Scroll to the "What I Learned" section for more.
+Scroll to the **What I Learned** section for what happened next.
 
 ---
 
@@ -40,8 +40,8 @@ This project is built with modern Android standards to ensure scalability and ma
 - [x] **Persistent values:** The app remembers the last used values for each recipe.
 - [ ] **Recipe import/export:** (In Progress; currently imports an initial recipe on first install)
 - [ ] **Theming:** Full Dynamic Color (Material 3) support. (In Progress)
-  [ ] **Baking timers:** (Planned)
-  [ ] **Image uploads:** Ability to attach photos to recipes. (Planned)
+- [ ] **Baking timers:** (Planned)
+- [ ] **Image uploads:** Ability to attach photos to recipes. (Planned)
 
 ---
 
@@ -86,14 +86,14 @@ AI (my headcanon): You didn't ask.
 
 Needless to say, there was a lot of refactoring involved later on in the project.
 
-But hey, it never gets tired of questions, "Explain this," "Explain that," "Why this," and "Please stop bringing up the bug I was trying to fix a few minutes ago and just answer this new question I have." (Gemini keeps bringing up the bug anyway.)
+I also learned is that the Gemini Agent is really good at messing up gradle files if you let it get its grubby agentic hands on those. It is not (as of April 2026) a good package manager. Now, it may be a good package manager next month, or next year, but I'm not holding my breath.
 
-Another thing I learned is that the Gemini Agent is really good at messing up gradle files if you let it get its grubby agentic hands on those. It is not (as of April 2026) a good package manager. Now, it may be a good package manager next month, or next year, though I'm not holding my breath.
+But hey, it never gets tired of questions, "Explain this," "Explain that," "Why this," and "Please stop bringing up the bug I was trying to fix a few minutes ago and just answer this new question I have." (Gemini keeps bringing up the bug anyway.)
 
 I didn't use Gemini exclusively. As I mentioned, screen layouts were inspired by Stitch, though I ended up changing quite a lot. I used Adobe Firefly to generate me some vectors to use as an icon/logo for this project. It came up with some pretty neat-looking stuff, but flawed for my use case. I needed something more simplified with more contrast, so I used the AI as a starting point and edited it:
 
-|                   AI-generated                   | My Edit                                              |
-|:------------------------------------------------:|:-----------------------------------------------------|
+|                   AI-generated                   |                       My Edit                        |
+|:------------------------------------------------:|:----------------------------------------------------:|
 | ![AI logo](docs/images/sourdoughvector_orig.png) | ![Edited Logo](docs/images/sourdoughvector_edit.png) |
 
 All in all, it feels like I took a crash course in Android and Jetpack Compose with a personal tutor. A tutor that no doubt has STILL omitted a lot of things that are common knowledge for, you know, actual Android developers... but that's what Reddit, Medium, and StackOverflow are for.
