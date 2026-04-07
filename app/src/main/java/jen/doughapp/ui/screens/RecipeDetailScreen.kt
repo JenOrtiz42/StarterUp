@@ -1,6 +1,7 @@
 package jen.doughapp.ui.screens
 
 import android.util.Log
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -60,6 +61,8 @@ import androidx.navigation.NavController
 import jen.doughapp.DoughApplication
 import jen.doughapp.data.IngredientType
 import jen.doughapp.data.toDisplayModel
+import jen.doughapp.domain.getHydration
+import jen.doughapp.domain.getTotalIngredientType
 import jen.doughapp.theme.Brown40
 import jen.doughapp.theme.BrownIconBG
 import jen.doughapp.theme.BrownIconTint
@@ -115,28 +118,22 @@ fun RecipeDetailScreen(
         return
     }
 
-    //source of truth multiplier
+    // Multiplier that drives all the scale and weight calculations
     var multiplier by remember { mutableDoubleStateOf(1.0) }
 
-    // 1. LOAD: Fetch the last used multiplier when the screen opens
+    // LOAD: Fetch the last used multiplier when the screen opens
     LaunchedEffect(recipeId) {
         repository.getSavedMultiplier(recipeId).collect { savedValue ->
             multiplier = savedValue
-            Log.d("DOUGH_DEBUG",
-                "Hopefully loading value: $savedValue ($recipeId)"
-            )
         }
     }
 
-    // 2. SAVE: Persist the value when the user leaves the screen
+    // SAVE: Persist the value when the user leaves the screen
     DisposableEffect(recipeId) {
         onDispose {
             // We use a CoroutineScope from the Application or a background thread
-            // because the ViewModel scope might be cancelled immediately on disposal
+            // because the ViewModel scope might be canceled immediately on disposal
             (context.applicationContext as DoughApplication).applicationScope.launch {
-                Log.d("DOUGH_DEBUG",
-                    "Hopefully saving value: $multiplier ($recipeId)"
-                )
                 repository.updateRecipeMultiplier(recipeId, multiplier)
             }
         }
@@ -155,7 +152,19 @@ fun RecipeDetailScreen(
 
     //todo, ensure valid value
     val onNewMultiplierInputChange: (String) -> Unit = {
-        //todo, make sure > 0
+        //behavior:
+        //currently, tries to get a valid double, and reverts to 1 if it's not valid
+        //(e.g. ##)
+        //common filter chips handle their own highlighting... so does custom,
+        //but it gets screwed up because it's not blanked out
+
+        //desired behavior:
+        //if it's a common value, blank out custom
+        //if it's invalid*, make sure custom is blanked out too
+        //  invalid = null (can't be converted) or not > 0
+        //if it's valid, just set the multiplier
+
+
         //todo -- the way this is done, makes it so if an invalid value is in custom,
         // it can't be edited again
         // should we blank out custom here if it's common?
@@ -191,47 +200,6 @@ fun RecipeDetailScreen(
     )
 }
 
-//todo move
-fun getTotalIngredientType(
-    ingredients: List<IngredientDisplayModel>,
-    type: IngredientType,
-    starterHydration: Int? = null): Double
-{
-    //todo, note, since we only have a single starter hydration, we're assuming
-    //only one starter per recipe
-    //might want to have some sort of constraint
-    val starterContribution = if (starterHydration != null) {
-        val totalParts = 100.0 + starterHydration
-        val ratio = when (type) {
-            IngredientType.FLOUR -> 100.0 / totalParts
-            IngredientType.HYDRATION -> starterHydration / totalParts
-            else -> 0.0
-        }
-
-        ingredients
-            .filter { it.type == IngredientType.STARTER }
-            .sumOf { it.amount * ratio }
-    } else 0.0
-
-    return ingredients
-        .filter { it.type == type }
-        .sumOf { it.amount } + starterContribution
-}
-
-fun getHydration(
-    ingredients: List<IngredientDisplayModel>,
-    starterHydration: Int?
-): Int {
-    val totalFlour = getTotalIngredientType(ingredients, IngredientType.FLOUR, starterHydration)
-    val totalLiquids = getTotalIngredientType(ingredients, IngredientType.HYDRATION, starterHydration)
-
-    if (totalFlour > 0 && totalLiquids > 0) {
-        return (100 * totalLiquids / totalFlour).roundToInt()
-    }
-
-    return 0
-}
-
 
 //todo, any refactoring needed to make this class "dumber"?
 @OptIn(ExperimentalMaterial3Api::class)
@@ -257,7 +225,7 @@ fun RecipeDetailContent(
         0.5, 1.0, 1.5, 2.0
     )
 
-    //todo doc -- selected common multiplier, null if it's not one of those
+    // The selected common multiplier (null if the multiplier isn't one of the commonMultipliers)
     val commonMultiplier : Double? = remember(multiplier) {
         multiplier.takeIf { it in commonMultipliers }
     }
@@ -319,20 +287,6 @@ fun RecipeDetailContent(
             }
     ) {
         DoughTopAppBar("Recipe Detail", onBack)
-//
-//        //todo, styles for filterchip
-//        //eventually move to ours
-//        val fcColors = FilterChipDefaults.filterChipColors(
-//            selectedContainerColor = Red50,
-//            selectedLabelColor = Color.White,
-//            //labelColor = MaterialTheme.colorScheme.onSurface,
-//            //containerColor = Color.Transparent
-//        )
-//        val fcBorder = FilterChipDefaults.filterChipBorder(
-//            enabled = true,
-//            selected = false,
-//            borderColor = MedDarkPurpleAlpha10,
-//        )
 
         //todo, lazycolumn?
         Column(
@@ -361,8 +315,6 @@ fun RecipeDetailContent(
             DoughSectionHeader(
                 text = "Scale recipe"
             )
-
-            //todo abstract out filterchip, so styles can be consistent
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -688,6 +640,25 @@ fun RecipeDetailContent(
                                     //ok, this works to make it resize dynamically,
                                     //it's just that it's too wide by a fixed amount
                                     .width(IntrinsicSize.Min)
+                                    //if we completely take out IntrinsicSize.Min,
+                                    //the field is much too wide (and still all cyan)
+                                    //and does NOT resize for text, stays within the card
+                                    //in fact, stays within the card as if the g isn't there;
+                                    //follows the card's margins
+                                    //presumbly it acts that way because the "g" is inside
+                                    //the text field, and not next to it?
+
+                                    //further, if I LEAVE the intrinsicSize Min, but REMOVE
+                                    //the g text box, the cyan is actually the correct size!
+                                    //if I simply remove the g, it expands to the card exactly
+                                    //as much as with the g
+
+                                    //using the decorationBox for the "g" is supposed to allow
+                                    //it to be tied to the width of the TextField, and act like
+                                    //a decoration at the end of it.
+                                    //Sounds great... but maybe a different approach would be better?
+                                    //we might not be able to get the g to stay in the right spot
+                                    //outside a decorationBox, is the idea
                                     .onFocusChanged { focusState ->
                                         // When focus is lost, commit the change
                                         if (!focusState.isFocused) {
@@ -709,26 +680,41 @@ fun RecipeDetailContent(
                                     },
                                 decorationBox = { innerTextField ->
                                     Row(
+                                        //todo -- debugging with background
                                         verticalAlignment = Alignment.CenterVertically,
+
+                                        //yellow for testing
+                                        //modifier = Modifier.background(Color.Yellow)
+
                                         //modifier = Modifier.width(IntrinsicSize.Min)
                                     ) {
-                                        innerTextField()
 
-                                        //these things don't work:
-//                                        Box(modifier = Modifier.width(textWidth + 2.dp)) {
-//                                            innerTextField()
-                                        // THE TRICK: The invisible text forces the Box
-                                        // to shrink below the TextField's default 64dp.
-//                                        Box(contentAlignment = Alignment.CenterStart) {
-//                                            Text(
-//                                                text = localWeightText,
-//                                                style = MaterialTheme.typography.headlineLarge.copy(
-//                                                    fontWeight = FontWeight.Bold
-//                                                ),
-//                                                color = Color.Transparent // Invisible
-//                                            )
-//                                            innerTextField()
-//                                        }
+                                        // WE USE A TARGETED BOX HERE
+                                        //modified "ghost trick" from AI
+                                        //oh hey, it DOES work, with or without intrinsicwidth
+                                        //in the textfield parent
+                                        //Box(modifier = Modifier.matchParentSize()) seemed to do it
+                                        Box(
+                                            //cyan for testing
+                                            //modifier = Modifier.background(Color.Cyan)
+                                        ) {
+                                            // 1. This Text forces the Box to be the EXACT width of the numbers
+                                            Text(
+                                                text = if (localWeightText.isEmpty()) " " else localWeightText,
+                                                style = MaterialTheme.typography.headlineLarge.copy(
+                                                    fontWeight = FontWeight.Bold
+                                                ),
+                                                color = Color.Transparent // We don't want to see it
+                                            )
+
+                                            // 2. We wrap the innerTextField in an even smaller box
+                                            // to prevent it from forcing a 64dp width
+                                            Box(modifier = Modifier.matchParentSize()) {
+                                                innerTextField()
+                                            }
+                                        }
+
+//                                      //innerTextField()
 
                                         Text(
                                             text = "g",
@@ -737,6 +723,8 @@ fun RecipeDetailContent(
                                             color = Red50,
                                             // Use a small padding to control the gap precisely
                                             modifier = Modifier.padding(start = 2.dp)
+                                            //green for testing
+                                                //.background(Color.Green)
                                         )
                                     }
                                 }
