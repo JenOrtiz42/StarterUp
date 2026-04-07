@@ -1,7 +1,6 @@
 package jen.doughapp.ui.screens
 
 import android.util.Log
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -35,8 +34,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableDoubleStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -85,7 +86,6 @@ import jen.doughapp.ui.components.DoughTopAppBar
 import jen.doughapp.ui.models.IngredientDisplayModel
 import jen.doughapp.ui.navigation.Screen
 import kotlinx.coroutines.launch
-import kotlin.math.roundToInt
 
 //todo: cleanup, this screen is a mess
 
@@ -96,6 +96,7 @@ fun RecipeDetailScreen(
     modifier: Modifier = Modifier,
     onBack: () -> Unit
 ) {
+    val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
 
     //todo, note, the modern way is DI, look into that later
@@ -121,20 +122,50 @@ fun RecipeDetailScreen(
     // Multiplier that drives all the scale and weight calculations
     var multiplier by remember { mutableDoubleStateOf(1.0) }
 
-    // LOAD: Fetch the last used multiplier when the screen opens
+    // The custom multplier if there is one
+    var customMultiplier by remember { mutableStateOf<Double?>(null) }
+
+    // A list of multipliers we want to make available for quick selection
+    val commonMultipliers = listOf(
+        0.5, 1.0, 1.5, 2.0
+    )
+
+
+    //todo x, verify, then remove logging
+
+    // Fetch the last used multiplier(s) when the screen opens
     LaunchedEffect(recipeId) {
-        repository.getSavedMultiplier(recipeId).collect { savedValue ->
-            multiplier = savedValue
+        launch {
+            repository.getSavedMultiplier(recipeId).collect { savedValue ->
+                multiplier = savedValue
+
+                Log.d(
+                    "DOUGH_DEBUG",
+                    "LOAD multiplier: $savedValue"
+                )
+            }
+        }
+        launch {
+            repository.getSavedCustomMultiplier(recipeId).collect { savedValue ->
+                customMultiplier = savedValue
+
+                Log.d(
+                    "DOUGH_DEBUG",
+                    "LOAD custom: $savedValue"
+                )
+            }
         }
     }
 
-    // SAVE: Persist the value when the user leaves the screen
+    //todo remove when we refactor
+    // Persist the multiplier(s) when the user leaves the screen
     DisposableEffect(recipeId) {
         onDispose {
             // We use a CoroutineScope from the Application or a background thread
             // because the ViewModel scope might be canceled immediately on disposal
             (context.applicationContext as DoughApplication).applicationScope.launch {
                 repository.updateRecipeMultiplier(recipeId, multiplier)
+                repository.updateRecipeCustomMultiplier(recipeId, customMultiplier)
             }
         }
     }
@@ -150,32 +181,76 @@ fun RecipeDetailScreen(
         }
     }
 
-    //todo, ensure valid value
-    val onNewMultiplierInputChange: (String) -> Unit = {
-        //behavior:
-        //currently, tries to get a valid double, and reverts to 1 if it's not valid
-        //(e.g. ##)
-        //common filter chips handle their own highlighting... so does custom,
-        //but it gets screwed up because it's not blanked out
+    // A simple counter to force refreshes (for now)
+    var resetTrigger by remember { mutableIntStateOf(0) }
 
-        //desired behavior:
-        //if it's a common value, blank out custom
-        //if it's invalid*, make sure custom is blanked out too
-        //  invalid = null (can't be converted) or not > 0
-        //if it's valid, just set the multiplier
+    val onMultiplierInputChange: (String) -> Unit = {
+        val newMultiplier = it.toDoubleOrNull()
+        val isValid = newMultiplier != null && newMultiplier > 0
+        val isCommon = commonMultipliers.contains(newMultiplier)
 
+        if (!isValid) {
+            Log.d("DOUGH_DEBUG", "INVALID value: $it," +
+                    " multiplier:$multiplier, custom:$customMultiplier")
 
-        //todo -- the way this is done, makes it so if an invalid value is in custom,
-        // it can't be edited again
-        // should we blank out custom here if it's common?
-        multiplier = it.toDoubleOrNull() ?: 1.0
+        }
+
+        //todo use the coroutine launch when we refactor, and get rid of the disposable
+        //for now, leave it because it's working(ish)
+
+        if (isValid) {
+            Log.d(
+                "DOUGH_DEBUG",
+                "updated multiplier: $newMultiplier"
+            )
+
+            multiplier = newMultiplier
+//            coroutineScope.launch {
+//                repository.updateRecipeMultiplier(recipeId, newMultiplier)
+//                Log.d("DOUGH_DEBUG", "Auto-saved multiplier: $newMultiplier")
+//            }
+
+            if (!isCommon) {
+                Log.d(
+                    "DOUGH_DEBUG",
+                    "updated custom: $newMultiplier"
+                )
+
+                customMultiplier = newMultiplier
+//                coroutineScope.launch {
+//                    repository.updateRecipeCustomMultiplier(recipeId, newMultiplier)
+//                    Log.d("DOUGH_DEBUG", "Auto-saved custom multiplier: $newMultiplier")
+//                }
+            }
+        }
+        else {
+            Log.d(
+                "DOUGH_DEBUG",
+                "BLANKING custom"
+            )
+            // The new multiplier is not valid (and we assume it must be a custom-entered one),
+            // so blank out the custom.
+
+            //todo, refactor to make input controlled, too, but for now,
+            // use resetTrigger to make sure it blanks out when not valid
+            customMultiplier = null
+            resetTrigger++
+
+//            coroutineScope.launch {
+//                repository.updateRecipeCustomMultiplier(recipeId, null)
+//                Log.d("DOUGH_DEBUG", "Removing custom multiplier")
+//            }
+        }
     }
 
     RecipeDetailContent(
         recipeName = recipeWithIngredients?.recipe?.name ?: "Loading...",
         recipeYield = recipeWithIngredients?.recipe?.yield ?: "",
         multiplier = multiplier,
-        onMultiplierInputChange = onNewMultiplierInputChange,
+        customMultiplier = customMultiplier,
+        onMultiplierInputChange = onMultiplierInputChange,
+        resetTrigger = resetTrigger,
+        commonMultipliers = commonMultipliers,
         ingredients = ingredients,
         onBack = onBack,
 
@@ -208,7 +283,10 @@ fun RecipeDetailContent(
     recipeName: String,
     recipeYield: String,
     multiplier: Double,
+    customMultiplier: Double?,
     onMultiplierInputChange: (String) -> Unit,
+    resetTrigger: Int,
+    commonMultipliers: List<Double>,
     ingredients: List<IngredientDisplayModel>,
     onBack: () -> Unit,
     onLevainPlannerClick: () -> Unit,
@@ -221,57 +299,18 @@ fun RecipeDetailContent(
     val starterHydration = 100
     val hydration = getHydration(ingredients, starterHydration)
 
-    val commonMultipliers = listOf(
-        0.5, 1.0, 1.5, 2.0
-    )
-
     // The selected common multiplier (null if the multiplier isn't one of the commonMultipliers)
     val commonMultiplier : Double? = remember(multiplier) {
         multiplier.takeIf { it in commonMultipliers }
     }
 
-
-    //todo... also set customMultiplier in pref?
-    // it does get saved as is, but only if it's the last used multiplier
-    // consider saving on its own, too, but we need a separate value to track that
-    // customMultiplier here changes while typing
-    var customMultiplier by remember { mutableStateOf("") }
-
-    //ok, the limitation of customMultiplier as is,
-    //is that it's both used for typing, and saving
-    //which means if we start typing, the previous value is lost
-    //need the previous value to be able to "revert" if typed invalid (or a common)
-
-    //options:
-    //1. when invoking edit, save the "previous value" until done
-    //  customMultiplier works the same, but if edit is done and value is invalid, it gets reverted to prev
-    //  might be a big trickier to coordinate with updateMultiplier function
-    //2. keep a separate value for the purpose of typing
-    //  customMultiplier is pesistent, and doesn't actually get updated until edit is done
-    //
-
-    //alternative UI approach: make the custom box different,
-    //don't style it as chip, but ALWAYS show the actual multiplier there
-    //(except when editing, show the editing multiplier)
-    //hmm, disadvantage because it wouldn't save that custom value
-    //although might consider it if we choose our own scalings?
-
-
-    LaunchedEffect(multiplier) {
+    // The local input that syncs with customMultiplier
+    var customMultiplierInput by remember(customMultiplier, resetTrigger) {
         Log.d(
             "DOUGH_DEBUG",
-            "LaunchedEffect, customMultiplier=$customMultiplier; multiplier=$multiplier, commonMultiplier=$commonMultiplier"
+            "updating custom: $customMultiplier"
         )
-
-        if (commonMultiplier == null) {
-            customMultiplier = multiplier.toString()
-
-            Log.d(
-                "DOUGH_DEBUG",
-                "Updated customMultiplier: $customMultiplier"
-            )
-
-        }
+        mutableStateOf(customMultiplier?.let { formatMultiplier(it) } ?: "")
     }
 
     var isEditingCustom by remember { mutableStateOf(false) }
@@ -320,18 +359,26 @@ fun RecipeDetailContent(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                /*
+                * The common multipliers act as regular FilterChips. The custom FilterChip
+                * incorporates a text field that allows editing.
+                * We use textFieldFocusRequester to let us conditionally focus the text field
+                * inside the chip.
+                * */
 
-                //todo, document what we did
-                //we need the text focus requester so when the chip is selcted, it goes to the text
                 val textFieldFocusRequester = remember { FocusRequester() }
 
                 commonMultipliers.forEach {
                     DoughFilterChip(
                         //todo, consider if we want the fixed width or not
-                        //might depend on the font size?
+                        // might depend on the font size?
                         modifier = Modifier.width(54.dp),
                         selected = !isEditingCustom && commonMultiplier == it,
                         onClick = {
+                            Log.d(
+                                "DOUGH_DEBUG",
+                                "tapped common, trying update: $it"
+                            )
                             isEditingCustom = false
                             focusManager.clearFocus()
                             onMultiplierInputChange(it.toString())
@@ -344,21 +391,6 @@ fun RecipeDetailContent(
                     )
                 }
 
-                /*
-                todo
-                issues:
-                -if I type something like "1" in custom, the common chip properly gets highlighted,
-                    but the custom value does not blank out, and I can't get back to custom
-                    (after typing, need to blank it out if it's a common one)
-                    do it in multiplier input, or in Custom?
-                -when invalid value entered, it goes back to 1, but I want it to revert to
-                    previous value. I think we'll need to track the previous value though,
-                    since customMultiplier is what's being typed
-                    (either that, or change to blank)
-
-                -save in prefs even if not selected?
-                */
-
                 DoughFilterChipCustom(
                     selected = isCustomSelected,
                     onClick = {
@@ -366,56 +398,37 @@ fun RecipeDetailContent(
                         // If the value is NOT empty, the first tap will select it, and the
                         // second tap will go into edit mode.
 
-                        if (customMultiplier.isNotEmpty() && !isCustomSelected) {
+                        if (customMultiplierInput.isNotEmpty() && !isCustomSelected) {
                             // Don't edit yet, just select by updating the multiplier
                             isEditingCustom = false
-                            onMultiplierInputChange(customMultiplier)
+                            onMultiplierInputChange(customMultiplierInput)
                         }
                         else {
                             isEditingCustom = true
                             textFieldFocusRequester.requestFocus()
                         }
                     },
-                    hasValue = customMultiplier.isNotEmpty(),
+                    hasValue = customMultiplierInput.isNotEmpty(),
                     label = {
                         Box(
                             modifier = Modifier.fillMaxWidth(),
                             contentAlignment = Alignment.Center
                         ) {
-                            val isTextFieldFocused = remember { mutableStateOf(false) }
-
-                            //todo, note: minor issue, but sometimes the display value can appear like
-                            //1, 1.5, 2, etc
-                            // Logic: If user is typing, show raw string. If not focused, show formatted.
-                            val displayMultiplierText =
-                                remember(customMultiplier, isTextFieldFocused.value) {
-                                    if (isTextFieldFocused.value || customMultiplier.isEmpty()) {
-                                        customMultiplier
-                                    } else {
-                                        customMultiplier
-                                        //todo, need to fix so doesn't happen while editing
-//                                        val num = customMultiplier.toDoubleOrNull()
-//                                        if (num != null) {
-//                                            // "%.2g" or similar logic to strip trailing zeros while keeping max 2 decimals
-//                                            if (num % 1.0 == 0.0) "%.0f".format(num) else "%.2f".format(
-//                                                num
-//                                            ).trimEnd('0').trimEnd('.')
-//                                        } else {
-//                                            customMultiplier
-//                                        }
-                                    }
-                                }
-
-                            //note, text field always visible, so we don't have
-                            //to worry about a delay when requesting focus
                             BasicTextField(
-                                value = displayMultiplierText,
+                                value = customMultiplierInput,
                                 onValueChange = {
-                                    customMultiplier = it
+                                    Log.d(
+                                        "DOUGH_DEBUG",
+                                        "updating customMultiplierInput: $it"
+                                    )
+
+                                    // Update customMultiplierInput so the user sees what they type,
+                                    // but do not update multiplier yet.
+                                    customMultiplierInput = it
+
                                 },
-                                cursorBrush = SolidColor(Color.White),
+                                cursorBrush = SolidColor(Color.White), //todo, match text
                                 modifier = Modifier
-                                    // bind this requester to this field
                                     .focusRequester(textFieldFocusRequester)
                                     .width(IntrinsicSize.Min)
                                     .widthIn(min = 40.dp)
@@ -426,24 +439,21 @@ fun RecipeDetailContent(
                                         if (!focusState.isFocused) {
                                             Log.d(
                                                 "DOUGH_DEBUG",
-                                                "Trying update custom multiplier: $customMultiplier"
+                                                "Custom multiplier lost focus, trying update: $customMultiplierInput"
                                             )
 
-                                            //todo, ok, if we've typed like "1", something matching
-                                            //a common multiplier, we want this to go back to custom
-
+                                            // No longer focused -- time to try to update the multiplier
                                             isEditingCustom = false
-                                            onMultiplierInputChange(customMultiplier)
+                                            onMultiplierInputChange(customMultiplierInput)
                                         }
                                     },
-                                //todo, need to borrow our fccolors
-                                textStyle = MaterialTheme.typography.labelLarge.copy(
+                                //todo, need to make sure we match dough filter chip
+                                textStyle = MaterialTheme.typography.labelSmall.copy(
                                     textAlign = TextAlign.Center,
                                     color = if (isCustomSelected)
-                                        Color.White
-                                    //MaterialTheme.colorScheme.onSecondaryContainer
+                                        MaterialTheme.colorScheme.onSecondary
                                     else
-                                        MaterialTheme.colorScheme.onSurface
+                                        MaterialTheme.colorScheme.secondary
                                 ),
                                 keyboardOptions = KeyboardOptions(
                                     keyboardType = KeyboardType.Decimal,
@@ -457,7 +467,7 @@ fun RecipeDetailContent(
                                 singleLine = true
                             )
 
-                            // NEW: Transparent overlay to intercept taps when the chip isn't selected.
+                            // Transparent overlay to intercept taps when the chip isn't selected.
                             // This prevents BasicTextField from gaining focus on the first tap.
                             if (!isCustomSelected) {
                                 Box(
@@ -468,9 +478,9 @@ fun RecipeDetailContent(
                                             indication = null // No ripple to avoid double-ripple with FilterChip
                                         ) {
                                             // Trigger the same logic as the FilterChip's onClick
-                                            if (customMultiplier.isNotEmpty()) {
+                                            if (customMultiplierInput.isNotEmpty()) {
                                                 isEditingCustom = false
-                                                onMultiplierInputChange(customMultiplier)
+                                                onMultiplierInputChange(customMultiplierInput)
                                             } else {
                                                 isEditingCustom = true
                                                 textFieldFocusRequester.requestFocus()
@@ -519,85 +529,7 @@ fun RecipeDetailContent(
                             mutableStateOf(formattedValue)
                         }
 
-                        /*
-
-                        //"nuclear" option?
-                        //technically, it DOES work, although it is too narrow
-                        //by the same amount (about half the g)
-
-                        Layout(
-                            content = {
-                                // Child 0: The TextField
-                                BasicTextField(
-                                    value = localWeightText,
-                                    onValueChange = { newValue ->
-                                        if (newValue.all { it.isDigit() || it == '.' }) {
-                                            localWeightText = newValue
-                                            val parsed = newValue.toDoubleOrNull()
-                                            if (parsed != null && totalWeight > 0) {
-                                                onMultiplierInputChange((parsed / totalWeight).toString())
-                                            }
-                                        }
-                                    },
-                                    textStyle = MaterialTheme.typography.headlineLarge.copy(
-                                        fontWeight = FontWeight.Bold,
-                                        color = Red50
-                                    ),
-                                    keyboardOptions = KeyboardOptions(
-                                        keyboardType = KeyboardType.Number,
-                                        imeAction = ImeAction.Done
-                                    ),
-                                    keyboardActions = KeyboardActions(
-                                        onDone = { focusManager.clearFocus() }
-                                    ),
-                                    cursorBrush = SolidColor(Red50),
-                                    singleLine = true,
-                                    modifier = Modifier
-                                        .width(IntrinsicSize.Min)
-                                        .drawBehind {
-                                            val strokeWidth = 2f
-                                            val y = size.height - strokeWidth / 2
-                                            drawLine(
-                                                color = Red50.copy(alpha = 0.3f),
-                                                start = Offset(0f, y),
-                                                end = Offset(size.width, y),
-                                                strokeWidth = strokeWidth
-                                            )
-                                        }
-                                )
-
-                                // Child 1: The "g" suffix
-                                Text(
-                                    text = "g",
-                                    style = MaterialTheme.typography.headlineLarge,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Red50,
-                                )
-                            }
-                        ) { measurables, constraints ->
-                            val textFieldPlaceable = measurables[0].measure(constraints)
-                            val gPlaceable = measurables[1].measure(constraints)
-
-                            // We subtract a fixed amount (approx 8-10dp depending on font)
-                            // from the TextField's reported width to snap the 'g' inward.
-                            val gapAdjustment = 12.dp.roundToPx()
-
-                            layout(
-                                width = textFieldPlaceable.width + gPlaceable.width - gapAdjustment,
-                                height = kotlin.comparisons.maxOf(textFieldPlaceable.height, gPlaceable.height)
-                            ) {
-                                textFieldPlaceable.placeRelative(0, 0)
-                                // Place the 'g' exactly where the text ends,
-                                // ignoring the internal trailing padding of the TextField
-                                gPlaceable.placeRelative(textFieldPlaceable.width - gapAdjustment, 0)
-                            }
-                        }
-
-                        */
-
-                        //ok, sticking with this for now, but it has a gap problem
-                        // also not sure if I like the underline or not, but I'll worry about it later
-                        // it actally helps me see the width of the field
+                        // not sure if I like the underline or not, but I'll worry about it later
                         Row(
                             verticalAlignment = Alignment.Bottom,
                             //modifier = Modifier.wrapContentWidth()
@@ -973,7 +905,10 @@ fun RecipeDetailScreenPreview() {
                 recipeName = "Sourdough Bread",
                 recipeYield = "1 loaf",
                 multiplier = 1.0,
+                customMultiplier = null,
                 onMultiplierInputChange = {},
+                resetTrigger = 0,
+                commonMultipliers = listOf(0.5, 1.0, 1.5, 2.0),
                 ingredients = listOf(
                     IngredientDisplayModel(
                         "Bread Flour",

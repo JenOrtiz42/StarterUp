@@ -40,7 +40,15 @@ class RecipeRepository(
         return preferences.getMultiplier(recipeId)
     }
 
+    fun getSavedCustomMultiplier(recipeId: Long): Flow<Double?> {
+        return preferences.getCustomMultiplier(recipeId)
+    }
+
     suspend fun updateRecipeMultiplier(recipeId: Long, newMultiplier: Double) {
         preferences.saveMultiplier(recipeId, newMultiplier)
+    }
+
+    suspend fun updateRecipeCustomMultiplier(recipeId: Long, newMultiplier: Double?) {
+        preferences.saveCustomMultiplier(recipeId, newMultiplier)
     }
 }

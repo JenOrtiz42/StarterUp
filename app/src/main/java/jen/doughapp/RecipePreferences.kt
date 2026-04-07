@@ -24,15 +24,31 @@ fun provideScreenPreferences(context: Context): ScreenPreferences {
 class RecipePreferences(private val dataStore: DataStore<Preferences>) {
     // Use a unique key for each recipe's multiplier
     private fun multiplierKey(recipeId: Long) = doublePreferencesKey("multiplier_$recipeId")
+    private fun customMultiplierKey(recipeId: Long) = doublePreferencesKey("custom_multiplier_$recipeId")
 
     fun getMultiplier(recipeId: Long): Flow<Double> = dataStore.data
         .map { preferences ->
             preferences[multiplierKey(recipeId)] ?: 1.0
         }
 
+    fun getCustomMultiplier(recipeId: Long): Flow<Double?> = dataStore.data
+        .map { preferences ->
+            preferences[customMultiplierKey(recipeId)]
+        }
+
     suspend fun saveMultiplier(recipeId: Long, multiplier: Double) {
         dataStore.edit { preferences ->
             preferences[multiplierKey(recipeId)] = multiplier
+        }
+    }
+
+    suspend fun saveCustomMultiplier(recipeId: Long, multiplier: Double?) {
+        dataStore.edit { preferences ->
+            if (multiplier != null) {
+                preferences[customMultiplierKey(recipeId)] = multiplier
+            } else {
+                preferences.remove(customMultiplierKey(recipeId))
+            }
         }
     }
 }
