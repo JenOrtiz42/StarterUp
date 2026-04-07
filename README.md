@@ -17,7 +17,7 @@ Scroll down to the **What I Learned** section for what happened next.
 Starter Up is an Android application designed for sourdough bakers to scale recipes and calculate ingredients.
 
 > ⚠️ **Project Status: Work in Progress**
-> This repository is a live look at my development process. The app is functioning, but I'm still building out features with a focus on a good user experience.
+> This repository is a live look at my development process. The app is functioning, but I'm still building out features and some parts of the code are still a mess. I get things to work first, then refactor to make the code actually maintainable. My biggest priority is to make the app a good user experience.
 
 ---
 
