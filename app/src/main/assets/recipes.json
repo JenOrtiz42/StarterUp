@@ -6,8 +6,31 @@
   "ingredients": [
     { "name": "Bread Flour", "bakersPercent": 100.0, "sortOrder": 0, "type": "FLOUR" },
     { "name": "Water", "bakersPercent": 70.0, "sortOrder": 1, "type": "HYDRATION" },
-    { "name": "Sourdough Starter", "bakersPercent": 20.0, "sortOrder": 2, "type": "STARTER" },
+    { "name": "Starter", "bakersPercent": 20.0, "sortOrder": 2, "type": "STARTER" },
     { "name": "Salt", "bakersPercent": 2.0, "sortOrder": 3, "type": "SALT" }
   ]
-}
-]
+},
+{
+    "name": "Sourdough Pizza (Long Proof)",
+    "yield": "4 balls",
+    "totalFlourAmount": 520,
+    "sortOrder": 0,
+    "ingredients": [
+      { "name": "Bread Flour", "bakersPercent": 100.0, "sortOrder": 0, "type": "FLOUR" },
+      { "name": "Water", "bakersPercent": 55.0, "sortOrder": 1, "type": "HYDRATION" },
+      { "name": "Starter", "bakersPercent": 35.0, "sortOrder": 2, "type": "STARTER" },
+      { "name": "Salt", "bakersPercent": 2.7, "sortOrder": 3, "type": "SALT" }
+    ]
+},
+{
+  "name": "Sourdough Ciabatta",
+  "yield": "",
+  "totalFlourAmount": 500.0,
+  "sortOrder": 0,
+  "ingredients": [
+    { "name": "Bread Flour", "bakersPercent": 100.0, "sortOrder": 0, "type": "FLOUR" },
+    { "name": "Water", "bakersPercent": 80.0, "sortOrder": 1, "type": "HYDRATION" },
+    { "name": "Starter", "bakersPercent": 20.0, "sortOrder": 2, "type": "STARTER" },
+    { "name": "Salt", "bakersPercent": 2.0, "sortOrder": 3, "type": "SALT" }
+  ]
+}]

@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
@@ -20,10 +19,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import jen.doughapp.DoughApplication
+import jen.doughapp.R
 import jen.doughapp.data.Recipe
 import jen.doughapp.data.RecipeWithIngredients
 import jen.doughapp.theme.DoughAppTheme
@@ -32,8 +33,6 @@ import jen.doughapp.ui.RecipeViewModelFactory
 import jen.doughapp.ui.components.DoughLogoIcon
 import jen.doughapp.ui.components.DoughPrimaryButton
 import jen.doughapp.ui.components.DoughRecipeList
-import jen.doughapp.ui.components.DoughSectionHeader
-import jen.doughapp.ui.components.RecipeItem
 
 @Composable
 fun HomeScreen(
@@ -77,7 +76,7 @@ fun HomeScreenContent(
     ) {
         item {
             Text(
-                text = "Dough App",
+                text = stringResource(id = R.string.app_name),
                 style = MaterialTheme.typography.headlineLarge,
             )
         }
@@ -133,7 +132,6 @@ fun HomeScreenContent(
     }
 }
 
-//todo, there may be some preview cleaning, I dunno
 @Preview(showBackground = true)
 @Composable
 fun HomeScreenPreview() {
