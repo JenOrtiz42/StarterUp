@@ -1,153 +1,124 @@
 package jen.doughapp.ui.components
 
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.material3.Icon
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.LocalRippleConfiguration
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RippleConfiguration
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import jen.doughapp.theme.Purple40Alpha10
+import jen.doughapp.theme.DoughAppTheme
 
 // Outlined card style with thicker border at the bottom
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DoughCard(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
-    // Optional background color (defaults to surfaceVariant if null)
-    containerColor: Color? = null,
-    // Optional background icon
-    icon: ImageVector? = null,
-    // Color for the background icon
-    iconTint: Color? = null,
+    containerColor: Color = MaterialTheme.colorScheme.surface,
+    rippleColor: Color = MaterialTheme.colorScheme.primary,
     content: @Composable () -> Unit
 ) {
-    //todo, pass in outline color, or base it on something else?
-    //kind of want to pass in a color scheme of sorts really
-    //but maybe worry about it later
-    //could have something like an enum to choose style, since it's a limited number of
-    //specific things, ie weight, hydration
-    //val outlineColor = MaterialTheme.colorScheme.outlineVariant
-    val outlineColor = Purple40Alpha10
-    val backgroundColor = containerColor ?: MaterialTheme.colorScheme.surface
+    //todo note: would prefer ripple color to be a brighter purple then primary,
+    // but also want to integrate that into the theme somehow
+
+    val outlineColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
     val shape = MaterialTheme.shapes.medium
-    val elevation = 4.dp
 
-    // Add a tiny bit of padding to the modifier to ensure the shadow doesn't get clipped
-    val shadowModifier = modifier.padding(4.dp)
-
-    // The Outer Surface provides the thick bottom "border"
-    Surface(
-        onClick = onClick ?: {},
-        enabled = onClick != null,
-        modifier = modifier,
-        color = outlineColor,
-        shape = shape
+    CompositionLocalProvider(
+        LocalRippleConfiguration provides RippleConfiguration(color = rippleColor)
     ) {
-        // The Inner Surface provides the actual card background
+        // The Outer Surface provides the thick bottom "border"
         Surface(
-            modifier = Modifier
-                .padding(bottom = 2.dp, start = .5.dp, end = 1.dp, top = .5.dp),
-            color = backgroundColor,
+            onClick = onClick ?: {},
+            enabled = onClick != null,
+            modifier = modifier,
+            color = outlineColor,
             shape = shape
         ) {
-
-            // We use a Box to allow the background icon to sit behind the content
-            Box(
-                //modifier = Modifier.fillMaxWidth()
+            // The Inner Surface provides the actual card background
+            Surface(
+                modifier = Modifier
+                    .padding(bottom = 2.dp, start = .5.dp, end = 1.dp, top = .5.dp),
+                color = containerColor,
+                shape = shape
             ) {
-
-                // If an icon is provided, render it in the background
-                if (icon != null) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        modifier = Modifier
-                            .size(100.dp) // Large size
-                            .align(Alignment.BottomEnd) // Position in corner
-                            .offset(x = 25.dp, y = 25.dp) // Bleed off the edges
-                            .graphicsLayer(
-                                alpha = 0.5f, // Semi-transparent
-                                rotationZ = -15f // Tilted for style
-                            ),
-                        tint = iconTint ?: backgroundColor.copy(alpha = 0.8f)
-                    )
-                }
-
-                // Render the main card content on top of the icon
                 content()
             }
         }
     }
 }
 
-
-// Outlined card style with thicker border at the bottom
+@Preview(showBackground = true, name = "Single Card Preview")
 @Composable
-fun DoughIconCard(
-    modifier: Modifier = Modifier,
-    // Optional background color (defaults to surfaceVariant if null)
-    containerColor: Color? = null,
-    // Optional background icon
-    icon: ImageVector? = null,
-    // Color for the background icon
-    iconTint: Color? = null,
-    content: @Composable () -> Unit
-) {
-    //todo, pass in colors as an object?
-    //(could also have like an enum of icon card types; they're limited)
-    //could also format text within this
-    val backgroundColor = containerColor ?: MaterialTheme.colorScheme.surfaceVariant
-    val shape = MaterialTheme.shapes.medium
-    val elevation = 4.dp
-
-    // Add a tiny bit of padding to the modifier to ensure the shadow doesn't get clipped
-    val shadowModifier = modifier.padding(4.dp)
-
-    // The Inner Surface provides the actual card background
-    Surface(
-//        modifier = Modifier
-//            .padding(bottom = 2.dp, start = .5.dp, end = 1.dp, top = .5.dp),
-        modifier = modifier,
-        color = backgroundColor,
-        shape = shape
-    ) {
-
-        //todo note, the cards don't need to be quite as tall
-
-        // We use a Box to allow the background icon to sit behind the content
-        Box(
-            //modifier = Modifier.fillMaxWidth()
-        ) {
-
-            // If an icon is provided, render it in the background
-            if (icon != null) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
+fun DoughCardPreview() {
+    DoughAppTheme {
+        Box(modifier = Modifier.padding(16.dp)) {
+            DoughCard(
+                onClick = {},
+                containerColor = MaterialTheme.colorScheme.surface
+            ) {
+                Column(
                     modifier = Modifier
-                        .size(100.dp) // Large size
-                        .align(Alignment.BottomEnd) // Position in corner
-                        .offset(x = 25.dp, y = 10.dp) // Bleed off the edges
-                        .graphicsLayer(
-                            alpha = 0.5f, // Semi-transparent
-                            rotationZ = -15f // Tilted for style
-                        ),
-                    tint = iconTint ?: backgroundColor.copy(alpha = 0.8f)
-                )
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                ) {
+                    Text(
+                        text = "Total Weight",
+                        style = MaterialTheme.typography.labelMedium
+                    )
+                    Text(
+                        text = "500g",
+                        style = MaterialTheme.typography.headlineLarge,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
             }
-
-            // Render the main card content on top of the icon
-            content()
         }
     }
-
 }
 
+@Preview(showBackground = true, name = "Card Style Variations")
+@Composable
+fun DoughCardVariantsPreview() {
+    DoughAppTheme {
+        Column(
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth()
+        ) {
+            // Standard Surface Card
+            DoughCard(onClick = {}) {
+                Text("Standard Card", Modifier.padding(16.dp))
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Custom Color Card
+            DoughCard(
+                onClick = {},
+                containerColor = MaterialTheme.colorScheme.primaryContainer
+            ) {
+                Text("Colored Container", Modifier.padding(16.dp))
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Non-clickable version (no shadow/interaction)
+            DoughCard(onClick = null) {
+                Text("Non-Clickable Card", Modifier.padding(16.dp))
+            }
+        }
+    }
+}
