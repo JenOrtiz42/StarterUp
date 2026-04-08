@@ -1,7 +1,6 @@
 package jen.doughapp.ui
 
 import android.util.Log
-import androidx.compose.runtime.collectAsState
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -13,16 +12,18 @@ import jen.doughapp.data.IngredientType
 import jen.doughapp.data.Recipe
 import jen.doughapp.data.RecipeRepository
 import jen.doughapp.data.RecipeWithIngredients
+import jen.doughapp.ui.utils.formatMultiplier
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.flow.flatMapLatest
 
 class RecipeViewModel(
     private val repository: RecipeRepository,
@@ -36,8 +37,13 @@ class RecipeViewModel(
     private val _uiState = MutableStateFlow(RecipeEditUiState())
     val uiState: StateFlow<RecipeEditUiState> = _uiState.asStateFlow()
 
-    // Whenever _currentRecipeId.value changes, flatMapLatest "switches"
-    // to a new database flow automatically.
+    // A local "override" for the scaling multiplier to provide instant UI feedback
+    // (This fixes a visual problem that would occur when custom multiplier
+    // gets updated before the multiplier, causing displays based on these
+    // values to ping-pong)
+    private val _multiplierOverride = MutableStateFlow<Double?>(null)
+
+    // The recipe scaling multiplier
     val multiplier: StateFlow<Double> = _currentRecipeId
         .flatMapLatest { id ->
             if (id == null || id == -1L) {
@@ -46,11 +52,26 @@ class RecipeViewModel(
                 repository.getSavedMultiplier(id)
             }
         }
+        .combine(_multiplierOverride) { dbValue, override ->
+            // If the database has caught up to our override,
+            // we can safely clear the override
+            if (override != null && dbValue == override) {
+                // We use a check here to avoid unnecessary re-compositions
+                _multiplierOverride.value = null
+            }
+
+            // Still return the override if it exists to keep the UI stable
+            override ?: dbValue
+        }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = Double.NaN
         )
+
+    // The custom recipe scaling multiplier
+    private val _customMultiplierInput = MutableStateFlow("")
+    val customMultiplierInput: StateFlow<String> = _customMultiplierInput.asStateFlow()
 
     val customMultiplier: StateFlow<Double?> = _currentRecipeId
         .flatMapLatest { id ->
@@ -59,6 +80,11 @@ class RecipeViewModel(
             } else {
                 repository.getSavedCustomMultiplier(id)
             }
+        }
+        .onEach { loadedValue ->
+            // Sync the raw input string whenever the database value changes.
+            // This handles initial load and external resets
+            _customMultiplierInput.value = loadedValue?.formatMultiplier() ?: ""
         }
         .stateIn(
             scope = viewModelScope,
@@ -76,7 +102,7 @@ class RecipeViewModel(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
-    val recipes = repository.allRecipes.stateIn(
+    val recipes: StateFlow<List<RecipeWithIngredients>> = repository.allRecipes.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = emptyList()
@@ -228,20 +254,22 @@ class RecipeViewModel(
         }
     }
 
-    //todo do we need?
-    fun getRecipe(id: Long) = repository.getRecipeById(id)
-
     fun deleteRecipe(recipe: Recipe) {
         viewModelScope.launch {
             repository.deleteRecipe(recipe)
         }
     }
 
+    // For dev testing
     fun addSampleRecipe() {
         viewModelScope.launch {
             val sample = getSampleRecipe()
             repository.upsertRecipeWithIngredients(sample.recipe, sample.ingredients)
         }
+    }
+
+    fun onCustomMultiplierInputChange(input: String) {
+        _customMultiplierInput.value = input
     }
 
     fun updateMultiplier(input: String, commonMultipliers: List<Double>) {
@@ -256,18 +284,34 @@ class RecipeViewModel(
         val id = _currentRecipeId.value ?: return
         if (id == -1L) return
 
+        // Optimistic updates
+        if (isValid) {
+            _multiplierOverride.value = newMultiplier
+
+            if (!isCommon) {
+                _customMultiplierInput.value = input
+            }
+        }
+
         viewModelScope.launch {
             if (isValid) {
                 repository.updateRecipeMultiplier(id, newMultiplier)
 
                 if (!isCommon) {
                     repository.updateRecipeCustomMultiplier(id, newMultiplier)
+                    // Note: don't need to update _customMultiplierInput.value here
+                    // because it's handled by the flow
                 }
+                // Else, leave the custom multiplier alone!
             }
             else {
                 // The new multiplier is not valid (and we assume it must be a custom-entered one),
                 // so blank out the custom.
                 repository.updateRecipeCustomMultiplier(id, null)
+
+                // Note: DO need to update _customMultiplierInput.value here, because
+                // if it's already null, it's not a change and won't trigger the update
+                _customMultiplierInput.value = ""
             }
         }
     }

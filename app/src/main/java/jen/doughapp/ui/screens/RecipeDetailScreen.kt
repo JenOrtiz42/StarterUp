@@ -112,8 +112,11 @@ fun RecipeDetailScreen(
     // Multiplier that drives all the scale and weight calculations
     val multiplier by viewModel.multiplier.collectAsStateWithLifecycle()
 
-    // The custom multplier if there is one
+    // The custom multiplier if there is one
     val customMultiplier by viewModel.customMultiplier.collectAsStateWithLifecycle()
+
+    // The custom multiplier input text
+    val customMultiplierInput by viewModel.customMultiplierInput.collectAsStateWithLifecycle()
 
     // A list of multipliers we want to make available for quick selection
     val commonMultipliers = listOf(
@@ -127,11 +130,12 @@ fun RecipeDetailScreen(
         } ?: emptyList()
     }
 
-    // A simple counter to force refreshes (for now)
-    var resetTrigger by remember { mutableIntStateOf(0) }
-
     val onMultiplierInputChange: (String) -> Unit = { input ->
         viewModel.updateMultiplier(input, commonMultipliers)
+    }
+
+    val onCustomMultiplierInputChange: (String) -> Unit = { input ->
+        viewModel.onCustomMultiplierInputChange(input)
     }
 
     RecipeDetailContent(
@@ -139,8 +143,9 @@ fun RecipeDetailScreen(
         recipeYield = recipeWithIngredients?.recipe?.yield ?: "",
         multiplier = multiplier,
         customMultiplier = customMultiplier,
+        customMultiplierInput = customMultiplierInput,
         onMultiplierInputChange = onMultiplierInputChange,
-        resetTrigger = resetTrigger,
+        onCustomMultiplierInputChange = onCustomMultiplierInputChange,
         commonMultipliers = commonMultipliers,
         ingredients = ingredients,
         onBack = onBack,
@@ -149,18 +154,10 @@ fun RecipeDetailScreen(
             val rawStarter = getTotalIngredientType(ingredients, IngredientType.STARTER)
             val scaledStarter = rawStarter * multiplier
 
-            // Format: If it's 42.0, show "42". If 42.5, show "42.5"
-            //todo, could simplify this... also we shouldn't need to format here??
-            //well, could format to limit what's passed to the planner route (which
-            //should have its own formatting anyway), but use same formatting function
-            //as the text field
-            val displayAmount = if (scaledStarter % 1.0 == 0.0) {
-                scaledStarter.toInt().toString()
-            } else {
-                "%.1f".format(scaledStarter)
-            }
-
-            navController.navigate(Screen.LevainPlanner.createRoute(displayAmount))
+            // Limit to 2 decimal points
+            val starterStr = "%.2f".format(scaledStarter)
+            navController.navigate(
+                Screen.LevainPlanner.createRoute(starterStr))
         },
         modifier = modifier
     )
@@ -174,9 +171,10 @@ fun RecipeDetailContent(
     recipeName: String,
     recipeYield: String,
     multiplier: Double,
-    customMultiplier: Double?,
+    customMultiplier: Double?, //todo hmm, do I actually need this one anymore?
+    customMultiplierInput: String,
     onMultiplierInputChange: (String) -> Unit,
-    resetTrigger: Int,
+    onCustomMultiplierInputChange: (String) -> Unit,
     commonMultipliers: List<Double>,
     ingredients: List<IngredientDisplayModel>,
     onBack: () -> Unit,
@@ -190,18 +188,10 @@ fun RecipeDetailContent(
     val starterHydration = 100
     val hydration = getHydration(ingredients, starterHydration)
 
-    // The selected common multiplier (null if the multiplier isn't one of the commonMultipliers)
+    // The selected common multiplier chip
+    // (null if the multiplier isn't one of the commonMultipliers)
     val commonMultiplier : Double? = remember(multiplier) {
         multiplier.takeIf { it in commonMultipliers }
-    }
-
-    // The local input that syncs with customMultiplier
-    var customMultiplierInput by remember(customMultiplier, resetTrigger) {
-        Log.d(
-            "DOUGH_DEBUG",
-            "updating custom: $customMultiplier"
-        )
-        mutableStateOf(customMultiplier?.let { it.formatMultiplier() } ?: "")
     }
 
     var isEditingCustom by remember { mutableStateOf(false) }
@@ -246,6 +236,12 @@ fun RecipeDetailContent(
                 text = "Scale recipe"
             )
 
+
+            //here -- this row, would like to have a filterchip row, with
+            //a set of values (as strings) and a custom value
+            //then I could use it in levain planner
+            //though maybe getting the custom chip itself more pared down first
+            //would be better
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -310,15 +306,7 @@ fun RecipeDetailContent(
                             BasicTextField(
                                 value = customMultiplierInput,
                                 onValueChange = {
-                                    Log.d(
-                                        "DOUGH_DEBUG",
-                                        "updating customMultiplierInput: $it"
-                                    )
-
-                                    // Update customMultiplierInput so the user sees what they type,
-                                    // but do not update multiplier yet.
-                                    customMultiplierInput = it
-
+                                    onCustomMultiplierInputChange(it)
                                 },
                                 cursorBrush = SolidColor(Color.White), //todo, match text
                                 modifier = Modifier
@@ -764,8 +752,9 @@ fun RecipeDetailScreenPreview() {
                 recipeYield = "1 loaf",
                 multiplier = 1.0,
                 customMultiplier = null,
+                customMultiplierInput = "",
                 onMultiplierInputChange = {},
-                resetTrigger = 0,
+                onCustomMultiplierInputChange = {},
                 commonMultipliers = listOf(0.5, 1.0, 1.5, 2.0),
                 ingredients = listOf(
                     IngredientDisplayModel(
