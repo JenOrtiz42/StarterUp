@@ -92,13 +92,13 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun RecipeDetailScreen(
-    //recipeId: Long,
     navController: NavController,
     modifier: Modifier = Modifier,
     onBack: () -> Unit,
     viewModel: RecipeViewModel
 ) {
     val recipeId = viewModel.recipeId
+    val recipeWithIngredients by viewModel.recipeWithIngredients.collectAsStateWithLifecycle()
     //todo, see if we still need recipeid
 
     //todo Replace collectAsState() with collectAsStateWithLifecycle() in your screen files.
@@ -111,12 +111,8 @@ fun RecipeDetailScreen(
         (context.applicationContext as DoughApplication).repository
     }
 //
-//    val viewModel: RecipeViewModel = viewModel(
-//        factory = RecipeViewModelFactory(repository)
-//    )
-
-    //todo, remove
-    val recipeWithIngredients by viewModel.getRecipe(recipeId).collectAsState(initial = null)
+//    //todo, remove
+//    val recipeWithIngredients by viewModel.getRecipe(recipeId).collectAsState(initial = null)
 
     //todo test
     if (recipeWithIngredients == null) {
@@ -185,14 +181,10 @@ fun RecipeDetailScreen(
     }
 
     val ingredients = remember(recipeWithIngredients) {
-        val totalFlourAmount = recipeWithIngredients?.recipe?.totalFlourAmount
-        if (totalFlourAmount == null) {
-            emptyList()
-        } else {
-            recipeWithIngredients?.ingredients?.map {
-                it.toDisplayModel(totalFlourAmount)
-            } ?: emptyList()
-        }
+        val totalFlour = recipeWithIngredients?.recipe?.totalFlourAmount ?: 1.0
+        recipeWithIngredients?.ingredients?.map {
+            it.toDisplayModel(totalFlour)
+        } ?: emptyList()
     }
 
     // A simple counter to force refreshes (for now)

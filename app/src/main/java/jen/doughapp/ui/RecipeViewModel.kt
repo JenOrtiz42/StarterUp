@@ -55,7 +55,7 @@ class RecipeViewModel(
 
     // Whenever _currentRecipeId.value changes, flatMapLatest "switches"
     // to a new database flow automatically.
-    val recipe = _currentRecipeId
+    val recipeWithIngredients: StateFlow<RecipeWithIngredients?> = _currentRecipeId
         .flatMapLatest { id ->
             if (id == null || id == -1L) {
                 kotlinx.coroutines.flow.flowOf(null)
@@ -72,7 +72,6 @@ class RecipeViewModel(
     )
 
     init {
-        // 4. THE MODERN REPLACEMENT for loadRecipeForEditing:
         // We observe the ID flow. If it changes, we fetch the data and update UI state.
         viewModelScope.launch {
             _currentRecipeId.collect { id ->
@@ -92,44 +91,6 @@ class RecipeViewModel(
                         }
                     }
                 }
-            }
-        }
-    }
-
-    //todo probably don't need
-    // AI: You can keep this fun IF you have a "Switch Recipe" button
-    // inside the same screen, but you no longer call it from LaunchedEffect.
-    fun loadRecipeForEditing(id: Long?) {
-        // Update the ID flow so the multiplier flow automatically switches
-        _currentRecipeId.value = id
-
-        if (id == null || id == -1L) {
-            val newDraft = RecipeDraft()
-            _uiState.update { RecipeEditUiState(recipe = newDraft, initialRecipe = newDraft) }
-            return
-        }
-
-        viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true) }
-            val data = repository.getRecipeById(id).firstOrNull()
-
-            if (data != null) {
-                val draft = RecipeDraft(
-                    id = data.recipe.id,
-                    name = data.recipe.name,
-                    flourWeight = data.recipe.totalFlourAmount.toString(),
-                    yield = data.recipe.yield,
-                    createdTimestamp = data.recipe.createdTimestamp,
-                    ingredients = data.ingredients.map { ing ->
-                        IngredientDraft(
-                            id = ing.id,
-                            name = ing.name,
-                            percentage = ing.bakersPercent.toString(),
-                            type = ing.type
-                        )
-                    }
-                )
-                _uiState.update { it.copy(recipe = draft, initialRecipe = draft, isLoading = false) }
             }
         }
     }
