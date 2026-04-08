@@ -1,13 +1,17 @@
 package jen.doughapp
 
+import androidx.lifecycle.SavedStateHandle
 import io.mockk.every
 import io.mockk.mockk
 import jen.doughapp.data.RecipeRepository
+import jen.doughapp.data.RecipeWithIngredients
 import jen.doughapp.ui.IngredientDraft
 import jen.doughapp.ui.RecipeViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
@@ -29,10 +33,38 @@ class RecipeViewModelTest {
     fun setup() {
         Dispatchers.setMain(testDispatcher)
         repository = mockk<RecipeRepository>()
+//
+//        every { repository.allRecipes } returns flowOf(emptyList())
+//
+//        viewModel = RecipeViewModel(repository)
 
+        // Mock the repository calls that happen during init
         every { repository.allRecipes } returns flowOf(emptyList())
+        // Since flatMapLatest triggers immediately, we need to mock the multiplier flow
+        every { repository.getSavedMultiplier(any()) } returns flowOf(1.0)
+        // If you added flatMapLatest for the recipe data as well:
+        //every { repository.getRecipeById(any()) } returns flowOf(null)
 
-        viewModel = RecipeViewModel(repository)
+        // 3. FIX: Create a dummy object because the Flow is non-nullable
+        val dummyRecipe = mockk<RecipeWithIngredients>(relaxed = true)
+        // 4. FIX: Return the dummy object inside the flow
+        every { repository.getRecipeById(any()) } returns flowOf(dummyRecipe)
+
+        // FIX: Explicitly define the null type for the flow
+        // Replace 'RecipeWithIngredients' with the actual class name in your data layer
+        //every { repository.getRecipeById(any()) } returns flowOf(null) as Flow<RecipeWithIngredients>
+// This creates a Flow that can contain a RecipeWithIngredients OR a null
+        //every { repository.getRecipeById(any()) } returns flowOf(null as RecipeWithIngredients?)
+        //every { repository.getRecipeById(any()) } returns flowOf<RecipeWithIngredients?>(null)
+
+        // Create a SavedStateHandle with the expected key
+        val savedStateHandle = SavedStateHandle(mapOf("recipeId" to -1L))
+
+        // Pass the handle into the constructor
+        viewModel = RecipeViewModel(
+            repository = repository,
+            savedStateHandle = savedStateHandle
+        )
     }
 
     @After
@@ -52,7 +84,7 @@ class RecipeViewModelTest {
     fun `updateRecipeName updates state and validation`() {
         // Act
         viewModel.updateRecipeName("Sourdough")
-        
+
         // Assert
         val state = viewModel.uiState.value
         assertEquals("Sourdough", state.recipe.name)

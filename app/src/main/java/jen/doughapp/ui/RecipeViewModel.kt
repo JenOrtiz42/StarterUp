@@ -1,9 +1,12 @@
 package jen.doughapp.ui
 
 import android.util.Log
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.CreationExtras
 import jen.doughapp.data.Ingredient
 import jen.doughapp.data.IngredientType
 import jen.doughapp.data.Recipe
@@ -17,21 +20,89 @@ import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.flatMapLatest
 
 class RecipeViewModel(
     private val repository: RecipeRepository,
+    savedStateHandle: SavedStateHandle
 ) : ViewModel()
 {
+    // Keep this for easy access to the initial ID (must match name in NavGraph route)
+    //(todo, see later if we still need)
+    val recipeId: Long = savedStateHandle["recipeId"] ?: -1L
+
+    private val _uiState = MutableStateFlow(RecipeEditUiState())
+    val uiState: StateFlow<RecipeEditUiState> = _uiState.asStateFlow()
+
+    // Initialized from Navigation, but can be changed by loadRecipeForEditing()
+    private val _currentRecipeId = MutableStateFlow<Long?>(recipeId)
+
+    // Whenever _currentRecipeId.value changes, flatMapLatest "switches"
+    // to a new database flow automatically.
+    val multiplier: StateFlow<Double> = _currentRecipeId
+        .flatMapLatest { id ->
+            if (id == null || id == -1L) {
+                kotlinx.coroutines.flow.flowOf(1.0) // Default for new recipes
+            } else {
+                repository.getSavedMultiplier(id) // Live DB flow for existing recipes
+            }
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = 1.0
+        )
+
+    // Whenever _currentRecipeId.value changes, flatMapLatest "switches"
+    // to a new database flow automatically.
+    val recipe = _currentRecipeId
+        .flatMapLatest { id ->
+            if (id == null || id == -1L) {
+                kotlinx.coroutines.flow.flowOf(null)
+            } else {
+                repository.getRecipeById(id)
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
     val recipes = repository.allRecipes.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = emptyList()
     )
 
-    private val _uiState = MutableStateFlow(RecipeEditUiState())
-    val uiState: StateFlow<RecipeEditUiState> = _uiState.asStateFlow()
+    init {
+        // 4. THE MODERN REPLACEMENT for loadRecipeForEditing:
+        // We observe the ID flow. If it changes, we fetch the data and update UI state.
+        viewModelScope.launch {
+            _currentRecipeId.collect { id ->
+                if (id == null || id == -1L) {
+                    val newDraft = RecipeDraft()
+                    _uiState.update {
+                        it.copy(recipe = newDraft, initialRecipe = newDraft, isLoading = false)
+                    }
+                } else {
+                    _uiState.update { it.copy(isLoading = true) }
+                    // Fetch the data once to populate the "Edit" fields
+                    val data = repository.getRecipeById(id).firstOrNull()
+                    data?.let { recipeWithIngredients ->
+                        val draft = recipeWithIngredients.toDraft() // Extension function for cleanliness
+                        _uiState.update {
+                            it.copy(recipe = draft, initialRecipe = draft, isLoading = false)
+                        }
+                    }
+                }
+            }
+        }
+    }
 
+    //todo probably don't need
+    // AI: You can keep this fun IF you have a "Switch Recipe" button
+    // inside the same screen, but you no longer call it from LaunchedEffect.
     fun loadRecipeForEditing(id: Long?) {
+        // Update the ID flow so the multiplier flow automatically switches
+        _currentRecipeId.value = id
+
         if (id == null || id == -1L) {
             val newDraft = RecipeDraft()
             _uiState.update { RecipeEditUiState(recipe = newDraft, initialRecipe = newDraft) }
@@ -202,11 +273,37 @@ class RecipeViewModel(
     }
 }
 
+// Helper to keep the ViewModel clean
+fun RecipeWithIngredients.toDraft(): RecipeDraft {
+    return RecipeDraft(
+        id = recipe.id,
+        name = recipe.name,
+        flourWeight = recipe.totalFlourAmount.toString(),
+        yield = recipe.yield,
+        createdTimestamp = recipe.createdTimestamp,
+        ingredients = ingredients.map { ing ->
+            IngredientDraft(
+                id = ing.id,
+                name = ing.name,
+                percentage = ing.bakersPercent.toString(),
+                type = ing.type
+            )
+        }
+    )
+}
+
+// Note: the modern standard is DI with Koin or Hilt to alleviate the need to
+// manually pass in every dependency through here
 class RecipeViewModelFactory(private val repository: RecipeRepository) : ViewModelProvider.Factory {
-    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+    override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T {
         if (modelClass.isAssignableFrom(RecipeViewModel::class.java)) {
+            val savedStateHandle = extras.createSavedStateHandle()
+
             @Suppress("UNCHECKED_CAST")
-            return RecipeViewModel(repository) as T
+            return RecipeViewModel(
+                repository = repository,
+                savedStateHandle = savedStateHandle
+            ) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }

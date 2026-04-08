@@ -43,10 +43,13 @@ fun NavGraphBuilder.doughGraph(
     composable(
         route = Screen.RecipeDetail.route,
         arguments = listOf(navArgument("recipeId") { type = NavType.LongType })
-    ) { backStackEntry ->
-        val recipeId = backStackEntry.arguments?.getLong("recipeId") ?: -1L
+    ) {
+        val viewModel: RecipeViewModel = viewModel(
+            factory = RecipeViewModelFactory(repository)
+        )
+
         RecipeDetailScreen(
-            recipeId = recipeId,
+            viewModel = viewModel,
             navController = navController,
             onBack = { navController.popBackStack() }
         )
@@ -58,15 +61,12 @@ fun NavGraphBuilder.doughGraph(
             type = NavType.LongType
             defaultValue = -1L
         })
-    ) { backStackEntry ->
-        val recipeId = backStackEntry.arguments?.getLong("recipeId") ?: -1L
-
+    ) {
         val viewModel: RecipeViewModel = viewModel(
             factory = RecipeViewModelFactory(repository)
         )
 
         RecipeEditScreen(
-            recipeId = recipeId,
             onBack = { navController.popBackStack() },
             viewModel = viewModel
         )

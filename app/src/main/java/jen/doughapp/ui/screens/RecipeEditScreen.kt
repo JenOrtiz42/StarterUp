@@ -31,6 +31,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -39,7 +40,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -63,6 +63,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import jen.doughapp.data.IngredientType
 import jen.doughapp.theme.DoughAppTheme
 import jen.doughapp.ui.IngredientDraft
@@ -105,16 +106,12 @@ common ingredients (from library?) (and templates)
 
 @Composable
 fun RecipeEditScreen(
-    recipeId: Long,
+    //recipeId: Long,
     onBack: () -> Unit,
     viewModel: RecipeViewModel
 ) {
-    LaunchedEffect(recipeId) {
-        viewModel.loadRecipeForEditing(recipeId)
-    }
-
     val context = LocalContext.current
-    val uiState by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     // Show toast when we have saved successfully
     var wasSaving by remember { mutableStateOf(false) }
@@ -127,6 +124,24 @@ fun RecipeEditScreen(
         }
         wasSaving = uiState.isSaving
     }
+
+    /*
+todo, note about this LaunchedEffect -- it's ok because it's a side effect,
+not a state. However, AI says:
+Yes, but with one "Modern" caveat.
+Using LaunchedEffect(uiState.isSaving) works, but it relies on a "comparison"
+of the previous state (wasSaving). If your isSaving stays false for a long time,
+the effect doesn't fire. This is generally fine for a simple Toast, but the
+industry is moving toward "Event Channels" for things like Toasts to avoid
+the wasSaving logic.
+
+The "Most Modern" Way (Event-Based)
+Instead of watching a boolean in the state, the ViewModel can "emit" a one-time event.
+This prevents the need for wasSaving variables in your Composable.
+
+
+ can define a Channel in viewmodel ... come back to this later
+    * */
 
     // Show a confirmation if exiting without saving changes
     var showExitConfirmation by remember { mutableStateOf(false) }
@@ -162,22 +177,26 @@ fun RecipeEditScreen(
 
     val isSaveEnabled = uiState.isEntryValid && !uiState.isSaving && uiState.isChanged
 
-    RecipeEditContent(
-        recipeId = uiState.recipe.id,
-        recipeName = uiState.recipe.name,
-        onRecipeNameChange = { viewModel.updateRecipeName(it) },
-        totalWeightInput = uiState.recipe.flourWeight,
-        onFlourWeightChange = { viewModel.updateFlourWeight(it) },
-        yieldInput = uiState.recipe.yield,
-        onYieldChange =  { viewModel.updateYield(it) },
-        ingredients = uiState.recipe.ingredients,
-        onIngredientsChange = { ingredients ->
-            viewModel.updateIngredients(ingredients)
-        },
-        onBack = handleBackNavigation,
-        isSaveEnabled = isSaveEnabled,
-        onSave = { viewModel.saveRecipe() }
-    )
+    if (uiState.isLoading) {
+        CircularProgressIndicator()
+    } else {
+        RecipeEditContent(
+            recipeId = uiState.recipe.id,
+            recipeName = uiState.recipe.name,
+            onRecipeNameChange = { viewModel.updateRecipeName(it) },
+            totalWeightInput = uiState.recipe.flourWeight,
+            onFlourWeightChange = { viewModel.updateFlourWeight(it) },
+            yieldInput = uiState.recipe.yield,
+            onYieldChange = { viewModel.updateYield(it) },
+            ingredients = uiState.recipe.ingredients,
+            onIngredientsChange = { ingredients ->
+                viewModel.updateIngredients(ingredients)
+            },
+            onBack = handleBackNavigation,
+            isSaveEnabled = isSaveEnabled,
+            onSave = { viewModel.saveRecipe() }
+        )
+    }
 }
 
 

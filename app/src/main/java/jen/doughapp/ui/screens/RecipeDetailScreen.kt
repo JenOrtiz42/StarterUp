@@ -57,6 +57,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import jen.doughapp.DoughApplication
@@ -91,11 +92,17 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun RecipeDetailScreen(
-    recipeId: Long,
+    //recipeId: Long,
     navController: NavController,
     modifier: Modifier = Modifier,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    viewModel: RecipeViewModel
 ) {
+    val recipeId = viewModel.recipeId
+    //todo, see if we still need recipeid
+
+    //todo Replace collectAsState() with collectAsStateWithLifecycle() in your screen files.
+
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
 
@@ -103,11 +110,12 @@ fun RecipeDetailScreen(
     val repository = remember {
         (context.applicationContext as DoughApplication).repository
     }
+//
+//    val viewModel: RecipeViewModel = viewModel(
+//        factory = RecipeViewModelFactory(repository)
+//    )
 
-    val viewModel: RecipeViewModel = viewModel(
-        factory = RecipeViewModelFactory(repository)
-    )
-
+    //todo, remove
     val recipeWithIngredients by viewModel.getRecipe(recipeId).collectAsState(initial = null)
 
     //todo test
@@ -118,6 +126,12 @@ fun RecipeDetailScreen(
         }
         return
     }
+
+
+    // This is the clean way. It automatically stops collecting when the app is backgrounded.
+    //val multiplier by viewModel.multiplier.collectAsStateWithLifecycle()
+    // Now you can use 'multiplier' like a normal Double variable
+    //Text("Scaling factor: ${multiplier}x")
 
     // Multiplier that drives all the scale and weight calculations
     var multiplier by remember { mutableDoubleStateOf(1.0) }
@@ -391,6 +405,8 @@ fun RecipeDetailContent(
                     )
                 }
 
+                // todo, I'm dying to abstract more of this functionality out...
+                // but what approach?
                 DoughFilterChipCustom(
                     selected = isCustomSelected,
                     onClick = {

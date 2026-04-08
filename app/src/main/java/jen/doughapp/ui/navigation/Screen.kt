@@ -2,6 +2,8 @@ package jen.doughapp.ui.navigation
 
 import jen.doughapp.R
 
+//todo: get rid of string-based routes in favor of type-safe navigation
+
 sealed class Screen(val route: String, val label: String, val icon: Int) {
     open fun createRoute(): String = route
 
