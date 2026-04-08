@@ -40,7 +40,7 @@ fun DoughFilterChip(
         selectedContainerColor = MaterialTheme.colorScheme.secondary,
         selectedLabelColor = MaterialTheme.colorScheme.onSecondary,
         labelColor = MaterialTheme.colorScheme.secondary,
-        containerColor = WarmBackground100
+        containerColor = MaterialTheme.colorScheme.surface
     )
 
     val fcBorder = FilterChipDefaults.filterChipBorder(
@@ -75,7 +75,6 @@ fun DoughFilterChip(
         shape = shape,
     )
 }
-
 
 @Composable
 fun DoughFilterChipCustom(
