@@ -1,6 +1,7 @@
 package jen.doughapp.ui
 
 import android.util.Log
+import androidx.compose.runtime.collectAsState
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -16,6 +17,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -28,33 +30,42 @@ class RecipeViewModel(
 ) : ViewModel()
 {
     // Keep this for easy access to the initial ID (must match name in NavGraph route)
-    //(todo, see later if we still need)
     val recipeId: Long = savedStateHandle["recipeId"] ?: -1L
+    private val _currentRecipeId = MutableStateFlow<Long?>(recipeId)
 
     private val _uiState = MutableStateFlow(RecipeEditUiState())
     val uiState: StateFlow<RecipeEditUiState> = _uiState.asStateFlow()
-
-    // Initialized from Navigation, but can be changed by loadRecipeForEditing()
-    private val _currentRecipeId = MutableStateFlow<Long?>(recipeId)
 
     // Whenever _currentRecipeId.value changes, flatMapLatest "switches"
     // to a new database flow automatically.
     val multiplier: StateFlow<Double> = _currentRecipeId
         .flatMapLatest { id ->
             if (id == null || id == -1L) {
-                kotlinx.coroutines.flow.flowOf(1.0) // Default for new recipes
+                kotlinx.coroutines.flow.flowOf(1.0)
             } else {
-                repository.getSavedMultiplier(id) // Live DB flow for existing recipes
+                repository.getSavedMultiplier(id)
             }
         }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
-            initialValue = 1.0
+            initialValue = Double.NaN
         )
 
-    // Whenever _currentRecipeId.value changes, flatMapLatest "switches"
-    // to a new database flow automatically.
+    val customMultiplier: StateFlow<Double?> = _currentRecipeId
+        .flatMapLatest { id ->
+            if (id == null || id == -1L) {
+                kotlinx.coroutines.flow.flowOf(null)
+            } else {
+                repository.getSavedCustomMultiplier(id)
+            }
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = null
+        )
+
     val recipeWithIngredients: StateFlow<RecipeWithIngredients?> = _currentRecipeId
         .flatMapLatest { id ->
             if (id == null || id == -1L) {
@@ -230,6 +241,34 @@ class RecipeViewModel(
         viewModelScope.launch {
             val sample = getSampleRecipe()
             repository.upsertRecipeWithIngredients(sample.recipe, sample.ingredients)
+        }
+    }
+
+    fun updateMultiplier(input: String, commonMultipliers: List<Double>) {
+        // If we are still in the NaN state, the database hasn't reported back yet.
+        if (multiplier.value.isNaN()) return
+
+        val newMultiplier = input.toDoubleOrNull()
+        val isValid = newMultiplier != null && newMultiplier > 0
+        val isCommon = commonMultipliers.contains(newMultiplier)
+
+        // Use the reactive ID to ensure we are targeting the same record the UI is watching
+        val id = _currentRecipeId.value ?: return
+        if (id == -1L) return
+
+        viewModelScope.launch {
+            if (isValid) {
+                repository.updateRecipeMultiplier(id, newMultiplier)
+
+                if (!isCommon) {
+                    repository.updateRecipeCustomMultiplier(id, newMultiplier)
+                }
+            }
+            else {
+                // The new multiplier is not valid (and we assume it must be a custom-entered one),
+                // so blank out the custom.
+                repository.updateRecipeCustomMultiplier(id, null)
+            }
         }
     }
 }

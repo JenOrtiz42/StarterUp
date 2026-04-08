@@ -86,6 +86,8 @@ import jen.doughapp.ui.components.DoughTag
 import jen.doughapp.ui.components.DoughTopAppBar
 import jen.doughapp.ui.models.IngredientDisplayModel
 import jen.doughapp.ui.navigation.Screen
+import jen.doughapp.ui.utils.formatBakersPercentage
+import jen.doughapp.ui.utils.formatMultiplier
 import kotlinx.coroutines.launch
 
 //todo: cleanup, this screen is a mess
@@ -97,24 +99,8 @@ fun RecipeDetailScreen(
     onBack: () -> Unit,
     viewModel: RecipeViewModel
 ) {
-    val recipeId = viewModel.recipeId
     val recipeWithIngredients by viewModel.recipeWithIngredients.collectAsStateWithLifecycle()
-    //todo, see if we still need recipeid
 
-    //todo Replace collectAsState() with collectAsStateWithLifecycle() in your screen files.
-
-    val coroutineScope = rememberCoroutineScope()
-    val context = LocalContext.current
-
-    //todo, note, the modern way is DI, look into that later
-    val repository = remember {
-        (context.applicationContext as DoughApplication).repository
-    }
-//
-//    //todo, remove
-//    val recipeWithIngredients by viewModel.getRecipe(recipeId).collectAsState(initial = null)
-
-    //todo test
     if (recipeWithIngredients == null) {
         // Show a loading spinner or a simple message
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -123,62 +109,16 @@ fun RecipeDetailScreen(
         return
     }
 
-
-    // This is the clean way. It automatically stops collecting when the app is backgrounded.
-    //val multiplier by viewModel.multiplier.collectAsStateWithLifecycle()
-    // Now you can use 'multiplier' like a normal Double variable
-    //Text("Scaling factor: ${multiplier}x")
-
     // Multiplier that drives all the scale and weight calculations
-    var multiplier by remember { mutableDoubleStateOf(1.0) }
+    val multiplier by viewModel.multiplier.collectAsStateWithLifecycle()
 
     // The custom multplier if there is one
-    var customMultiplier by remember { mutableStateOf<Double?>(null) }
+    val customMultiplier by viewModel.customMultiplier.collectAsStateWithLifecycle()
 
     // A list of multipliers we want to make available for quick selection
     val commonMultipliers = listOf(
         0.5, 1.0, 1.5, 2.0
     )
-
-
-    //todo x, verify, then remove logging
-
-    // Fetch the last used multiplier(s) when the screen opens
-    LaunchedEffect(recipeId) {
-        launch {
-            repository.getSavedMultiplier(recipeId).collect { savedValue ->
-                multiplier = savedValue
-
-                Log.d(
-                    "DOUGH_DEBUG",
-                    "LOAD multiplier: $savedValue"
-                )
-            }
-        }
-        launch {
-            repository.getSavedCustomMultiplier(recipeId).collect { savedValue ->
-                customMultiplier = savedValue
-
-                Log.d(
-                    "DOUGH_DEBUG",
-                    "LOAD custom: $savedValue"
-                )
-            }
-        }
-    }
-
-    //todo remove when we refactor
-    // Persist the multiplier(s) when the user leaves the screen
-    DisposableEffect(recipeId) {
-        onDispose {
-            // We use a CoroutineScope from the Application or a background thread
-            // because the ViewModel scope might be canceled immediately on disposal
-            (context.applicationContext as DoughApplication).applicationScope.launch {
-                repository.updateRecipeMultiplier(recipeId, multiplier)
-                repository.updateRecipeCustomMultiplier(recipeId, customMultiplier)
-            }
-        }
-    }
 
     val ingredients = remember(recipeWithIngredients) {
         val totalFlour = recipeWithIngredients?.recipe?.totalFlourAmount ?: 1.0
@@ -190,63 +130,8 @@ fun RecipeDetailScreen(
     // A simple counter to force refreshes (for now)
     var resetTrigger by remember { mutableIntStateOf(0) }
 
-    val onMultiplierInputChange: (String) -> Unit = {
-        val newMultiplier = it.toDoubleOrNull()
-        val isValid = newMultiplier != null && newMultiplier > 0
-        val isCommon = commonMultipliers.contains(newMultiplier)
-
-        if (!isValid) {
-            Log.d("DOUGH_DEBUG", "INVALID value: $it," +
-                    " multiplier:$multiplier, custom:$customMultiplier")
-
-        }
-
-        //todo use the coroutine launch when we refactor, and get rid of the disposable
-        //for now, leave it because it's working(ish)
-
-        if (isValid) {
-            Log.d(
-                "DOUGH_DEBUG",
-                "updated multiplier: $newMultiplier"
-            )
-
-            multiplier = newMultiplier
-//            coroutineScope.launch {
-//                repository.updateRecipeMultiplier(recipeId, newMultiplier)
-//                Log.d("DOUGH_DEBUG", "Auto-saved multiplier: $newMultiplier")
-//            }
-
-            if (!isCommon) {
-                Log.d(
-                    "DOUGH_DEBUG",
-                    "updated custom: $newMultiplier"
-                )
-
-                customMultiplier = newMultiplier
-//                coroutineScope.launch {
-//                    repository.updateRecipeCustomMultiplier(recipeId, newMultiplier)
-//                    Log.d("DOUGH_DEBUG", "Auto-saved custom multiplier: $newMultiplier")
-//                }
-            }
-        }
-        else {
-            Log.d(
-                "DOUGH_DEBUG",
-                "BLANKING custom"
-            )
-            // The new multiplier is not valid (and we assume it must be a custom-entered one),
-            // so blank out the custom.
-
-            //todo, refactor to make input controlled, too, but for now,
-            // use resetTrigger to make sure it blanks out when not valid
-            customMultiplier = null
-            resetTrigger++
-
-//            coroutineScope.launch {
-//                repository.updateRecipeCustomMultiplier(recipeId, null)
-//                Log.d("DOUGH_DEBUG", "Removing custom multiplier")
-//            }
-        }
+    val onMultiplierInputChange: (String) -> Unit = { input ->
+        viewModel.updateMultiplier(input, commonMultipliers)
     }
 
     RecipeDetailContent(
@@ -316,7 +201,7 @@ fun RecipeDetailContent(
             "DOUGH_DEBUG",
             "updating custom: $customMultiplier"
         )
-        mutableStateOf(customMultiplier?.let { formatMultiplier(it) } ?: "")
+        mutableStateOf(customMultiplier?.let { it.formatMultiplier() } ?: "")
     }
 
     var isEditingCustom by remember { mutableStateOf(false) }
@@ -391,7 +276,7 @@ fun RecipeDetailContent(
                         },
                         label = { Text(
                             modifier = Modifier.fillMaxWidth(),
-                            text = formatMultiplier(it),
+                            text = it.formatMultiplier(),
                             textAlign = TextAlign.Center
                         ) },
                     )
@@ -771,41 +656,6 @@ fun IngredientsTable(
     Spacer(modifier = Modifier.height(8.dp))
 }
 
-//todo move
-fun formatBakersPercentage(value: Double): String {
-//    if (value % 1.0 == 0.0) {
-//        // It's a whole number: show no decimals
-//        return "${value.toInt()}%"
-//    } else {
-//        // It has decimals: show 1 decimal place (change to %.2f for two)
-//        return "${"%.1f".format(value)}%"
-//    }
-//
-
-    // Display without trailing 0s, and without a decimal if it's a whole number
-    val formattedNumber = "%.2f".format(value)
-        .trimEnd('0')
-        .trimEnd('.')
-
-    return "${formattedNumber}%"
-
-}
-//another option (applies to every Double in the project):
-//val Double.formattedPercent: String
-// get() = if (this % 1.0 == 0.0) this.toInt().toString() else "%.1f".format(this)
-//text = "${ingredient.bakersPercent.formattedPercent}%"
-
-
-//todo move
-fun formatMultiplier(value: Double?): String {
-    // Display without trailing 0s, and without a decimal if it's a whole number
-    val formattedNumber = "%.2f".format(value)
-        .trimEnd('0')
-        .trimEnd('.')
-
-    return formattedNumber
-}
-
 
 //todo, abstract into component
 @Composable
@@ -827,7 +677,7 @@ fun IngredientRow(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 DoughTag(
-                    text = formatBakersPercentage(ingredient.bakersPercent),
+                    text = ingredient.bakersPercent.formatBakersPercentage(),
                     fixedWidth = 60.dp
                 )
 
