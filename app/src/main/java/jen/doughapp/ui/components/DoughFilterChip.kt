@@ -28,12 +28,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -41,6 +44,128 @@ import jen.doughapp.theme.DoughAppTheme
 
 //todo, gather the theme and color stuff together in one spot for cohesion
 
+
+// Creates a row of styled filter chips with static text
+@Composable
+fun DoughFilterChipRow(
+    modifier: Modifier = Modifier,
+    focusManager: FocusManager,
+    staticChips: List<String>,
+    selectedValue: String,
+    onCommitValueChange: (String) -> Unit)
+{
+    DoughFilterChipRow(
+        modifier = modifier,
+        focusManager = focusManager,
+        staticChips = staticChips,
+        selectedValue = selectedValue,
+        onCommitValueChange = onCommitValueChange,
+        showCustomChip = false,
+        customInputValue = "",
+        onCustomInputValueChange = {},
+        keyboardType = KeyboardType.Text
+    )
+}
+
+// Creates a row of styled filter chips, with an optional editable custom value at the end
+@Composable
+fun DoughFilterChipRow(
+    modifier: Modifier = Modifier,
+    focusManager: FocusManager,
+    staticChips: List<String>,
+    selectedValue: String,
+    onCommitValueChange: (String) -> Unit,
+    showCustomChip: Boolean,
+    customInputValue: String,
+    onCustomInputValueChange: (String) -> Unit,
+    keyboardType: KeyboardType
+) {
+    /*
+    * The staticChips act as regular FilterChips.
+    * The custom FilterChip, if used, incorporates a text field that allows editing.
+    * We use a textFieldFocusRequester to let us conditionally focus the text field
+    * inside the chip.
+    * */
+
+    var isEditingCustom by remember { mutableStateOf(false) }
+    val isCustomSelected = isEditingCustom || !staticChips.contains(selectedValue)
+    val textFieldFocusRequester = remember { FocusRequester() }
+
+    val staticChipOnClick: (String) -> Unit = {
+        // If we were editing custom, we aren't now
+        isEditingCustom = false
+        // This chip is static and doesn't have focus, but
+        // we need to clear focus from other fields.
+        focusManager.clearFocus()
+        // Update our value
+        onCommitValueChange(it)
+    }
+
+    Row(
+        modifier = modifier.fillMaxWidth(), //todo, do we want fillMaxWidth for sure?
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        staticChips.forEach {
+            val isSelected = !isEditingCustom && selectedValue == it
+
+            DoughFilterChip(
+                //todo, decide how we want to handle...
+                // consider if we want the fixed width or not
+                // might depend on the font size and what text we have?
+                modifier = Modifier.width(54.dp),
+
+                selected = isSelected,
+                onClick = { staticChipOnClick(it) },
+                text = it
+            )
+        }
+
+        if (showCustomChip) {
+            DoughFilterChipCustom(
+                selected = isCustomSelected,
+                editing = isEditingCustom,
+                onEditingChange = {
+                    isEditingCustom = it
+                },
+                inputValue = customInputValue,
+                onInputValueChange = {
+                    onCustomInputValueChange(it)
+                },
+                onCommitValueChange = {
+                    onCommitValueChange(it)
+                },
+                textFieldFocusRequester = textFieldFocusRequester,
+                focusManager = focusManager,
+                keyboardType = keyboardType
+            )
+        }
+    }
+}
+
+// Styled filter chip
+@Composable
+fun DoughFilterChip(
+    modifier: Modifier = Modifier,
+    selected: Boolean,
+    onClick: () -> Unit,
+    text: String
+) {
+    DoughFilterChip(
+        modifier = modifier,
+        selected = selected,
+        onClick = onClick,
+        label = {
+            Text(
+                modifier = Modifier.fillMaxWidth(),
+                text = text,
+                textAlign = TextAlign.Center
+            )
+        }
+    )
+}
+
+// Styled filter chip
+// Overload allows full label composable to be passed in for custom functionality
 @Composable
 fun DoughFilterChip(
     modifier: Modifier = Modifier,
@@ -99,9 +224,9 @@ fun DoughFilterChipCustom(
     inputValue: String,
     onInputValueChange: (String) -> Unit,
     onCommitValueChange: (String) -> Unit,
+    focusManager: FocusManager,
     textFieldFocusRequester: FocusRequester,
-    keyboardOptions : KeyboardOptions, //todo just keyboardtype instead?
-    keyboardActions : KeyboardActions //todo, hoist onDone instead? or pass in focusManager?
+    keyboardType: KeyboardType,
 ) {
     val hasValue = inputValue.isNotEmpty()
 
@@ -115,6 +240,7 @@ fun DoughFilterChipCustom(
             onCommitValueChange(inputValue)
         }
         else {
+            // Focus text field to edit
             onEditingChange(true)
             textFieldFocusRequester.requestFocus()
         }
@@ -125,54 +251,27 @@ fun DoughFilterChipCustom(
             modifier = Modifier.fillMaxWidth(),
             contentAlignment = Alignment.Center
         ) {
+            // Handles hint text display (e.g. "Custom")
             CustomChipBackgroundHint(
                 selected = selected,
                 hasValue = hasValue,
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.secondary)
 
-            // todo move into privte function for clarity
-            Box(
-                modifier = Modifier.fillMaxWidth(),
-                contentAlignment = Alignment.Center
-            ) {
-                BasicTextField(
-                    value = inputValue,
-                    onValueChange =  onInputValueChange,
-                    cursorBrush = SolidColor(MaterialTheme.colorScheme.onSecondary),
-                    modifier = Modifier
-                        .focusRequester(textFieldFocusRequester)
-                        .width(IntrinsicSize.Min)
-                        .widthIn(min = 40.dp)
-                        .onFocusChanged { focusState ->
-                            if (focusState.isFocused) {
-                                onEditingChange(true)
-                            }
-                            if (!focusState.isFocused) {
-                                // No longer focused -- time to call the update
-                                onEditingChange(false)
-                                onCommitValueChange(inputValue)
-                            }
-                        },
-                    //todo, need to make sure we match dough filter chip
-                    textStyle = MaterialTheme.typography.labelSmall.copy(
-                        textAlign = TextAlign.Center,
-                        color = if (selected)
-                            MaterialTheme.colorScheme.onSecondary
-                        else
-                            MaterialTheme.colorScheme.secondary
-                    ),
-                    keyboardOptions = keyboardOptions,
-                    //just pass in keyboard type? imeaction can still be done
-                    //though need to chain them I assume?
-                    keyboardActions = keyboardActions,
-                    //todo, might want to explicitly make sure clearFocus()
-                    // is called here, to make sure onCommitValueChange is run
-                    // when user taps away
-                    singleLine = true
-                )
-            }
+            // Handles the input
+            CustomChipTextField(
+                selected = selected,
+                editing = editing,
+                onEditingChange = onEditingChange,
+                inputValue = inputValue,
+                onInputValueChange = onInputValueChange,
+                onCommitValueChange = onCommitValueChange,
+                focusManager = focusManager,
+                textFieldFocusRequester = textFieldFocusRequester,
+                keyboardType = keyboardType
+            )
 
+            // Intercepts taps for more subtle UI behavior
             CustomChipTransparentOverlay(
                 selected = selected,
                 onClick = onClick
@@ -185,6 +284,56 @@ fun DoughFilterChipCustom(
         selected = selected,
         onClick = onClick,
         label = labelCustom
+    )
+}
+
+@Composable
+private fun CustomChipTextField(
+    selected: Boolean,
+    editing: Boolean,
+    onEditingChange: (Boolean) -> Unit,
+    inputValue: String,
+    onInputValueChange: (String) -> Unit,
+    onCommitValueChange: (String) -> Unit,
+    focusManager: FocusManager,
+    textFieldFocusRequester: FocusRequester,
+    keyboardType: KeyboardType
+) {
+    BasicTextField(
+        value = inputValue,
+        onValueChange =  onInputValueChange,
+        cursorBrush = SolidColor(MaterialTheme.colorScheme.onSecondary),
+        modifier = Modifier
+            .focusRequester(textFieldFocusRequester)
+            .width(IntrinsicSize.Min)
+            .widthIn(min = 40.dp)
+            .onFocusChanged { focusState ->
+                if (focusState.isFocused) {
+                    onEditingChange(true)
+                }
+                if (!focusState.isFocused) {
+                    // No longer focused -- time to call the update
+                    onEditingChange(false)
+                    onCommitValueChange(inputValue)
+                }
+            },
+        textStyle = MaterialTheme.typography.labelSmall.copy(
+            textAlign = TextAlign.Center,
+            color = if (selected)
+                MaterialTheme.colorScheme.onSecondary
+            else
+                MaterialTheme.colorScheme.secondary
+        ),
+        keyboardOptions = KeyboardOptions(
+            keyboardType = keyboardType,
+            imeAction = ImeAction.Done
+        ),
+        keyboardActions = KeyboardActions(
+            onDone = {
+                focusManager.clearFocus()
+            }
+        ),
+        singleLine = true
     )
 }
 
@@ -228,7 +377,7 @@ private fun BoxScope.CustomChipTransparentOverlay(
                 .clickable(
                     // Trigger the same logic as the FilterChip's onClick
                     onClick = onClick,
-                    // indication = null disables the ripple effect, since this
+                    // "indication = null" disables the ripple effect, since this
                     // overlay is supposed to be transparent.
                     // Interaction source is just here because indication needs it.
                     interactionSource = remember { MutableInteractionSource() },

@@ -65,6 +65,7 @@ import jen.doughapp.ui.components.DoughCard
 import jen.doughapp.ui.components.DoughSectionHeader
 import jen.doughapp.ui.components.DoughFilterChip
 import jen.doughapp.ui.components.DoughFilterChipCustom
+import jen.doughapp.ui.components.DoughFilterChipRow
 import jen.doughapp.ui.components.DoughIconCard
 import jen.doughapp.ui.components.DoughIngredientTypeTag
 import jen.doughapp.ui.components.DoughPrimaryButton
@@ -173,15 +174,6 @@ fun RecipeDetailContent(
     val starterHydration = 100
     val hydration = getHydration(ingredients, starterHydration)
 
-    // The selected common multiplier chip
-    // (null if the multiplier isn't one of the commonMultipliers)
-    val commonMultiplier : Double? = remember(multiplier) {
-        multiplier.takeIf { it in commonMultipliers }
-    }
-
-    var isEditingCustom by remember { mutableStateOf(false) }
-    val isCustomSelected = isEditingCustom || !commonMultipliers.contains(multiplier)
-
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -221,71 +213,25 @@ fun RecipeDetailContent(
                 text = "Scale recipe"
             )
 
-
-            //here -- this row, would like to have a filterchip row, with
-            //a set of values (as strings) and a custom value
-            //then I could use it in levain planner
-            //though maybe getting the custom chip itself more pared down first
-            //would be better
-
-            //Also, maybe a component that groups the chips together
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                /*
-                * The common multipliers act as regular FilterChips. The custom FilterChip
-                * incorporates a text field that allows editing.
-                * We use textFieldFocusRequester to let us conditionally focus the text field
-                * inside the chip.
-                * */
-
-                val textFieldFocusRequester = remember { FocusRequester() }
-
-                commonMultipliers.forEach {
-                    DoughFilterChip(
-                        //todo, consider if we want the fixed width or not
-                        // might depend on the font size?
-                        modifier = Modifier.width(54.dp),
-                        selected = !isEditingCustom && commonMultiplier == it,
-                        onClick = {
-                            isEditingCustom = false
-                            focusManager.clearFocus()
-                            onMultiplierInputChange(it.toString())
-                        },
-                        label = { Text(
-                            modifier = Modifier.fillMaxWidth(),
-                            text = it.formatMultiplier(),
-                            textAlign = TextAlign.Center
-                        ) },
-                    )
-                }
-
-                DoughFilterChipCustom(
-                    selected = isCustomSelected,
-                    editing = isEditingCustom,
-                    onEditingChange = {
-                        isEditingCustom = it
-                    },
-                    inputValue = customMultiplierInput,
-                    onInputValueChange = {
-                        onCustomMultiplierInputChange(it)
-                    },
-                    onCommitValueChange = {
-                        onMultiplierInputChange(it)
-                    },
-                    textFieldFocusRequester = textFieldFocusRequester,
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Decimal,
-                        imeAction = ImeAction.Done
-                    ),
-                    keyboardActions = KeyboardActions(
-                        onDone = {
-                            focusManager.clearFocus()
-                        }
-                    ),
-                )
+            val formattedMultipliers = commonMultipliers.map {
+                it.formatMultiplier()
             }
+
+            DoughFilterChipRow(
+                focusManager = focusManager,
+                staticChips = formattedMultipliers,
+                selectedValue = multiplier.formatMultiplier(),
+                onCommitValueChange = onMultiplierInputChange,
+                showCustomChip = true,
+                customInputValue = customMultiplierInput,
+                onCustomInputValueChange = { newValue ->
+                    // Ignore invalid inputs like "#"
+                    if (newValue.all { it.isDigit() || it == '.' }) {
+                        onCustomMultiplierInputChange(newValue)
+                    }
+               },
+                keyboardType = KeyboardType.Decimal
+            )
 
             Spacer(modifier = Modifier.height(16.dp))
 
