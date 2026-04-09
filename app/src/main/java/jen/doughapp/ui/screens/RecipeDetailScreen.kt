@@ -1,9 +1,6 @@
 package jen.doughapp.ui.screens
 
-import android.util.Log
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,7 +12,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -29,27 +25,20 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableDoubleStateOf
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -58,9 +47,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import jen.doughapp.DoughApplication
 import jen.doughapp.data.IngredientType
 import jen.doughapp.data.toDisplayModel
 import jen.doughapp.domain.getHydration
@@ -73,7 +60,6 @@ import jen.doughapp.theme.Red50
 import jen.doughapp.theme.RedIconBG
 import jen.doughapp.theme.RedIconTint
 import jen.doughapp.ui.RecipeViewModel
-import jen.doughapp.ui.RecipeViewModelFactory
 import jen.doughapp.ui.components.DoughAmountEditBox
 import jen.doughapp.ui.components.DoughCard
 import jen.doughapp.ui.components.DoughSectionHeader
@@ -88,7 +74,6 @@ import jen.doughapp.ui.models.IngredientDisplayModel
 import jen.doughapp.ui.navigation.Screen
 import jen.doughapp.ui.utils.formatBakersPercentage
 import jen.doughapp.ui.utils.formatMultiplier
-import kotlinx.coroutines.launch
 
 //todo: cleanup, this screen is a mess
 
@@ -242,6 +227,8 @@ fun RecipeDetailContent(
             //then I could use it in levain planner
             //though maybe getting the custom chip itself more pared down first
             //would be better
+
+            //Also, maybe a component that groups the chips together
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -262,10 +249,6 @@ fun RecipeDetailContent(
                         modifier = Modifier.width(54.dp),
                         selected = !isEditingCustom && commonMultiplier == it,
                         onClick = {
-                            Log.d(
-                                "DOUGH_DEBUG",
-                                "tapped common, trying update: $it"
-                            )
                             isEditingCustom = false
                             focusManager.clearFocus()
                             onMultiplierInputChange(it.toString())
@@ -278,99 +261,29 @@ fun RecipeDetailContent(
                     )
                 }
 
-                // todo, I'm dying to abstract more of this functionality out...
-                // but what approach?
                 DoughFilterChipCustom(
                     selected = isCustomSelected,
-                    onClick = {
-                        // When the value is empty, a single tap should go into edit mode.
-                        // If the value is NOT empty, the first tap will select it, and the
-                        // second tap will go into edit mode.
-
-                        if (customMultiplierInput.isNotEmpty() && !isCustomSelected) {
-                            // Don't edit yet, just select by updating the multiplier
-                            isEditingCustom = false
-                            onMultiplierInputChange(customMultiplierInput)
-                        }
-                        else {
-                            isEditingCustom = true
-                            textFieldFocusRequester.requestFocus()
-                        }
+                    editing = isEditingCustom,
+                    onEditingChange = {
+                        isEditingCustom = it
                     },
-                    hasValue = customMultiplierInput.isNotEmpty(),
-                    label = {
-                        Box(
-                            modifier = Modifier.fillMaxWidth(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            BasicTextField(
-                                value = customMultiplierInput,
-                                onValueChange = {
-                                    onCustomMultiplierInputChange(it)
-                                },
-                                cursorBrush = SolidColor(Color.White), //todo, match text
-                                modifier = Modifier
-                                    .focusRequester(textFieldFocusRequester)
-                                    .width(IntrinsicSize.Min)
-                                    .widthIn(min = 40.dp)
-                                    .onFocusChanged { focusState ->
-                                        if (focusState.isFocused) {
-                                            isEditingCustom = true
-                                        }
-                                        if (!focusState.isFocused) {
-                                            Log.d(
-                                                "DOUGH_DEBUG",
-                                                "Custom multiplier lost focus, trying update: $customMultiplierInput"
-                                            )
-
-                                            // No longer focused -- time to try to update the multiplier
-                                            isEditingCustom = false
-                                            onMultiplierInputChange(customMultiplierInput)
-                                        }
-                                    },
-                                //todo, need to make sure we match dough filter chip
-                                textStyle = MaterialTheme.typography.labelSmall.copy(
-                                    textAlign = TextAlign.Center,
-                                    color = if (isCustomSelected)
-                                        MaterialTheme.colorScheme.onSecondary
-                                    else
-                                        MaterialTheme.colorScheme.secondary
-                                ),
-                                keyboardOptions = KeyboardOptions(
-                                    keyboardType = KeyboardType.Decimal,
-                                    imeAction = ImeAction.Done
-                                ),
-                                keyboardActions = KeyboardActions(
-                                    onDone = {
-                                        focusManager.clearFocus()
-                                    }
-                                ),
-                                singleLine = true
-                            )
-
-                            // Transparent overlay to intercept taps when the chip isn't selected.
-                            // This prevents BasicTextField from gaining focus on the first tap.
-                            if (!isCustomSelected) {
-                                Box(
-                                    modifier = Modifier
-                                        .matchParentSize()
-                                        .clickable(
-                                            interactionSource = remember { MutableInteractionSource() },
-                                            indication = null // No ripple to avoid double-ripple with FilterChip
-                                        ) {
-                                            // Trigger the same logic as the FilterChip's onClick
-                                            if (customMultiplierInput.isNotEmpty()) {
-                                                isEditingCustom = false
-                                                onMultiplierInputChange(customMultiplierInput)
-                                            } else {
-                                                isEditingCustom = true
-                                                textFieldFocusRequester.requestFocus()
-                                            }
-                                        }
-                                )
-                            }
-                        }
+                    inputValue = customMultiplierInput,
+                    onInputValueChange = {
+                        onCustomMultiplierInputChange(it)
                     },
+                    onCommitValueChange = {
+                        onMultiplierInputChange(it)
+                    },
+                    textFieldFocusRequester = textFieldFocusRequester,
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Decimal,
+                        imeAction = ImeAction.Done
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onDone = {
+                            focusManager.clearFocus()
+                        }
+                    ),
                 )
             }
 
