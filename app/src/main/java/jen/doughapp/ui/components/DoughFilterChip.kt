@@ -88,7 +88,7 @@ fun DoughFilterChipRow(
     * */
 
     var isEditingCustom by remember { mutableStateOf(false) }
-    val isCustomSelected = isEditingCustom || !staticChips.contains(selectedValue)
+    val isCustomSelected = isEditingCustom || (selectedValue == customInputValue && customInputValue.isNotEmpty())
     val textFieldFocusRequester = remember { FocusRequester() }
 
     val staticChipOnClick: (String) -> Unit = {
@@ -311,7 +311,7 @@ private fun CustomChipTextField(
                 if (focusState.isFocused) {
                     onEditingChange(true)
                 }
-                if (!focusState.isFocused) {
+                if (editing && !focusState.isFocused) {
                     // No longer focused -- time to call the update
                     onEditingChange(false)
                     onCommitValueChange(inputValue)
