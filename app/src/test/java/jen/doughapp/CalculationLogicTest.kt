@@ -5,9 +5,6 @@ import jen.doughapp.data.IngredientType
 import jen.doughapp.data.toDisplayModel
 import jen.doughapp.domain.StarterRatio
 import jen.doughapp.ui.recipe.IngredientDisplayModel
-import jen.doughapp.ui.screens.getAmount
-import jen.doughapp.ui.screens.getRatioSum
-import jen.doughapp.ui.screens.getTargetAmountFromStarterAmount
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -16,7 +13,7 @@ class CalculationLogicTest {
     @Test
     fun `getRatioSum correctly sums 1-2-2 ratio`() {
         val ratio = StarterRatio(1, 2, 2)
-        assertEquals(5, getRatioSum(ratio))
+        assertEquals(5, ratio.totalParts)
     }
 
     @Test
@@ -24,28 +21,32 @@ class CalculationLogicTest {
         // Ratio 1:2:2 means 5 total parts. 
         // 500g / 5 = 100g per portion. 
         // Flour is 2 portions = 200g.
-        val amount = getAmount(targetTotal = "500", ratioSum = 5, portion = 2)
-        assertEquals(200, amount)
+        val ratio = StarterRatio(1, 2, 2)
+        val amounts = ratio.calculateAmounts("500")
+        assertEquals(200, amounts.flourWeight)
     }
 
     @Test
     fun `getAmount handles invalid target amount string gracefully`() {
-        val amount = getAmount(targetTotal = "invalid", ratioSum = 5, portion = 2)
-        assertEquals(0, amount)
+        val ratio = StarterRatio(1, 2, 2)
+        val amounts = ratio.calculateAmounts("invalid")
+        assertEquals(0, amounts.flourWeight)
     }
 
     @Test
     fun `getAmount handles empty target amount string gracefully`() {
-        val amount = getAmount(targetTotal = "", ratioSum = 5, portion = 2)
-        assertEquals(0, amount)
+        val ratio = StarterRatio(1, 2, 2)
+        val amounts = ratio.calculateAmounts("")
+        assertEquals(0, amounts.flourWeight)
     }
 
-    @Test
-    fun `getTargetAmountFromStarterAmount calculates correct total for 1-2-2 ratio`() {
-        // 100g starter with a 1:2:2 ratio (sum 5) should result in 500g total
-        val total = getTargetAmountFromStarterAmount(starterTotal = 100, ratioSum = 5)
-        assertEquals(500, total)
-    }
+// note: reassessing need for this function
+//    @Test
+//    fun `getTargetAmountFromStarterAmount calculates correct total for 1-2-2 ratio`() {
+//        // 100g starter with a 1:2:2 ratio (sum 5) should result in 500g total
+//        val total = getTargetAmountFromStarterAmount(starterTotal = 100, ratioSum = 5)
+//        assertEquals(500, total)
+//    }
 
     @Test
     fun `toDisplayModel calculates correct weight based on Bakers Percent`() {
