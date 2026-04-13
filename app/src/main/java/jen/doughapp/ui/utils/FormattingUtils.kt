@@ -17,3 +17,12 @@ fun Double?.formatMultiplier(): String {
 
     return formattedNumber
 }
+
+fun Double?.formatAmount() : String {
+    // Display without trailing 0s, and without a decimal if it's a whole number
+    val displayValue = "%.2f".format(this)
+        .trimEnd('0')
+        .trimEnd('.')
+
+    return displayValue
+}
