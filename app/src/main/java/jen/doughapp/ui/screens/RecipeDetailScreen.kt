@@ -33,7 +33,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -43,7 +42,6 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -62,13 +60,11 @@ import jen.doughapp.theme.RedIconTint
 import jen.doughapp.ui.RecipeViewModel
 import jen.doughapp.ui.components.DoughAmountEditBox
 import jen.doughapp.ui.components.DoughCard
-import jen.doughapp.ui.components.DoughSectionHeader
-import jen.doughapp.ui.components.DoughFilterChip
-import jen.doughapp.ui.components.DoughFilterChipCustom
 import jen.doughapp.ui.components.DoughFilterChipRow
 import jen.doughapp.ui.components.DoughIconCard
 import jen.doughapp.ui.components.DoughIngredientTypeTag
 import jen.doughapp.ui.components.DoughPrimaryButton
+import jen.doughapp.ui.components.DoughSectionHeader
 import jen.doughapp.ui.components.DoughTag
 import jen.doughapp.ui.components.DoughTopAppBar
 import jen.doughapp.ui.models.IngredientDisplayModel
@@ -218,6 +214,7 @@ fun RecipeDetailContent(
             }
 
             DoughFilterChipRow(
+                modifier = Modifier.fillMaxWidth(),
                 focusManager = focusManager,
                 staticChips = formattedMultipliers,
                 selectedValue = multiplier.formatMultiplier(),
@@ -463,17 +460,17 @@ fun RecipeDetailContent(
 
             Spacer(modifier = Modifier.height(16.dp))
             Text(
-                text = "Variations",
+                text = "Variations (planned)",
                 style = MaterialTheme.typography.titleMedium
             )
             Spacer(modifier = Modifier.height(16.dp))
             Text(
-                text = "Process Steps",
+                text = "Process Steps (planned)",
                 style = MaterialTheme.typography.titleMedium
             )
             Spacer(modifier = Modifier.height(16.dp))
             Text(
-                text = "Start Baking (timers)",
+                text = "Start Baking (timers) (planned)",
                 style = MaterialTheme.typography.titleMedium
             )
         }

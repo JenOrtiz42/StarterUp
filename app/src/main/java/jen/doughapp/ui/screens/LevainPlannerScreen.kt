@@ -3,6 +3,7 @@ package jen.doughapp.ui.screens
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -11,6 +12,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -23,21 +26,33 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.OffsetMapping
+import androidx.compose.ui.text.input.TransformedText
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import jen.doughapp.R
+import jen.doughapp.domain.LevainIngredients
 import jen.doughapp.domain.StarterRatio
 import jen.doughapp.theme.DoughAppTheme
+import jen.doughapp.theme.Red50
 import jen.doughapp.ui.components.DoughAmountEditBox
 import jen.doughapp.ui.components.DoughCard
 import jen.doughapp.ui.components.DoughFilterChip
+import jen.doughapp.ui.components.DoughFilterChipRow
 import jen.doughapp.ui.components.DoughSectionHeader
 import jen.doughapp.ui.components.DoughTopAppBar
+import jen.doughapp.ui.utils.formatMultiplier
 import kotlin.math.roundToInt
 
 /*
@@ -51,27 +66,6 @@ todo, implement custom ratio value
 make it easy to type, just three numbers, auto colons
 
 */
-
-
-fun getAmount(
-    targetTotal: String,
-    ratioSum: Int,
-    portion: Int
-): Int {
-    val targetNumber = targetTotal.toDoubleOrNull() ?: 0.0
-    return ((targetNumber / ratioSum) * portion).roundToInt()
-}
-
-fun getTargetAmountFromStarterAmount(
-    starterTotal: Int,
-    ratioSum: Int
-): Int {
-    return (starterTotal * ratioSum)
-}
-
-fun getRatioSum(ratio: StarterRatio): Int {
-    return ratio.starterPortion + ratio.flourPortion + ratio.waterPortion
-}
 
 @Composable
 fun LevainScreen(
@@ -97,7 +91,7 @@ fun LevainScreen(
         StarterRatio(1, 3, 3),
         StarterRatio(1, 5, 5),
     )
-    var selectedRatio by remember { mutableStateOf(ratios[0]) }
+    var selectedRatio by remember { mutableStateOf<StarterRatio?>(ratios[0]) }
     var localText by remember(targetAmount) {
         mutableStateOf(targetAmount)
     }
@@ -160,28 +154,59 @@ fun LevainScreen(
                 text = "Build Ratio"
             )
 
-            //todo: in future editable build ratio
-            //also configure default -- or just last one used
-            //allow custom amount entered
+            val formattedRatios = ratios.map {
+                it.displayString
+            }
+
+            //updates based on colon-delimited string
+            val updateSelectedRatio: (String) -> Unit = { newValue ->
+                selectedRatio = StarterRatio.fromString(newValue)
+            }
+
+            DoughFilterChipRow(
+                modifier = Modifier.fillMaxWidth(),
+                focusManager = focusManager,
+                staticChips = formattedRatios,
+                selectedValue = selectedRatio?.displayString ?: "",
+                onCommitValueChange = updateSelectedRatio,
+//                showCustomChip = true,
+//                customInputValue = customMultiplierInput,
+//                onCustomInputValueChange = { newValue ->
+//                    // Ignore invalid inputs like "#"
+//                    if (newValue.all { it.isDigit() || it == '.' }) {
+//                        onCustomMultiplierInputChange(newValue)
+//                    }
+//                },
+//                keyboardType = KeyboardType.Decimal
+            )
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                ratios.forEach { ratio ->
-                    DoughFilterChip(
-                        selected = selectedRatio == ratio,
-                        onClick = { selectedRatio = ratio },
-                        label = {
-                            Text("${ratio.starterPortion}:${ratio.flourPortion}:${ratio.waterPortion}") }
-                    )
-                }
+                //todo, experimental...for now using a static chip just to keep it simple
+
+                DoughFilterChip(
+                    selected = false,
+                    onClick = { },
+                    label = {
+                        RatioInput(
+                            flourValue = selectedRatio?.flourPortion.toString(),
+                            onFlourChange = {
+                                selectedRatio = selectedRatio?.copy(flourPortion = it.toIntOrNull() ?: 0)
+                            },
+                            waterValue = selectedRatio?.waterPortion.toString(),
+                            onWaterChange = {
+                                selectedRatio = selectedRatio?.copy(waterPortion = it.toIntOrNull() ?: 0)
+                            }
+                        )
+                    }
+                )
             }
 
-            val ratioSum = getRatioSum(selectedRatio)
-
-            val starterAmount = getAmount(targetAmount, ratioSum, selectedRatio.starterPortion)
-            val flourAmount = getAmount(targetAmount, ratioSum, selectedRatio.flourPortion)
-            val waterAmount = getAmount(targetAmount, ratioSum, selectedRatio.waterPortion)
+            val amounts = remember(targetAmount, selectedRatio) {
+                selectedRatio?.calculateAmounts(targetAmount) ?: LevainIngredients(0, 0, 0)
+            }
 
             Spacer(modifier = Modifier.height(24.dp))
 
@@ -207,8 +232,8 @@ fun LevainScreen(
 
                     AmountRow(
                         text = "Starter",
-                        amount = starterAmount,
-                        selectedRatio = selectedRatio,
+                        amount = amounts.starterWeight,
+                        selectedRatio = selectedRatio!!,
                         iconId = R.drawable.grain_24px,
                         onUpdateTargetAmount = { newTarget ->
                             targetAmount = newTarget
@@ -220,8 +245,8 @@ fun LevainScreen(
                     )
                     AmountRow(
                         text ="Flour",
-                        amount = flourAmount,
-                        selectedRatio = selectedRatio,
+                        amount = amounts.flourWeight,
+                        selectedRatio = selectedRatio!!,
                         iconId = R.drawable.wheat_24px)
                     HorizontalDivider(
                         thickness = 0.5.dp,
@@ -229,12 +254,69 @@ fun LevainScreen(
                     )
                     AmountRow(
                         text ="Water",
-                        amount = waterAmount,
-                        selectedRatio = selectedRatio,
+                        amount = amounts.waterWeight,
+                        selectedRatio = selectedRatio!!,
                         iconId = R.drawable.water_drop_24px)
                 }
             }
         }
+    }
+}
+
+
+@Composable
+fun RatioInput(
+    flourValue: String,
+    onFlourChange: (String) -> Unit,
+    waterValue: String,
+    onWaterChange: (String) -> Unit
+) {
+    //todo:
+    // it's working, yay! now need to refine:
+    // need to fix font/colors
+    // need to not have it enter 0 when number is deleted
+    // need to have change vs commit
+    // need to have it not change immediately when selected starter does
+    // ...also, need to save in prefs
+
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text("1 : ", style = MaterialTheme.typography.bodyLarge)
+
+        // Flour Field
+        BasicTextField(
+            value = flourValue,
+            onValueChange = { if (it.all { c -> c.isDigit() }) onFlourChange(it) },
+            modifier = Modifier
+                .width(IntrinsicSize.Min)
+                .drawBehind {
+                    drawLine(
+                        Color.Gray,
+                        Offset(0f, size.height),
+                        Offset(size.width, size.height),
+                        2f
+                    )
+                },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        )
+
+        Text(" : ", style = MaterialTheme.typography.bodyLarge)
+
+        // Water Field
+        BasicTextField(
+            value = waterValue,
+            onValueChange = { if (it.all { c -> c.isDigit() }) onWaterChange(it) },
+            modifier = Modifier
+                .width(IntrinsicSize.Min)
+                .drawBehind {
+                    drawLine(
+                        Color.Gray,
+                        Offset(0f, size.height),
+                        Offset(size.width, size.height),
+                        2f
+                    )
+                },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        )
     }
 }
 
@@ -287,6 +369,7 @@ fun AmountRow(
 //                        val newAmount = localText.toIntOrNull() ?: 0
 //                        if (amount > 0) {
 //                            val newTarget = getTargetAmountFromStarterAmount(
+                                    //(starterTotal * ratioSum)
 //                                newAmount,
 //                                getRatioSum(selectedRatio)
 //                            )

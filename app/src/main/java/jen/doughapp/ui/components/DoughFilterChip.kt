@@ -5,6 +5,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -19,6 +20,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SelectableChipColors
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -38,14 +40,52 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import jen.doughapp.theme.DoughAppTheme
 
-//todo, gather the theme and color stuff together in one spot for cohesion
+//todo, decide how to handle widths (including if there's any value we want to put in default)
+//  explore possible larger font, but don't want to wrap
 
 
-// Creates a row of styled filter chips with static text
+/**
+ * Centralized styling for DoughApp chips.
+ */
+object DoughChipDefaults {
+    val shape = RoundedCornerShape(24.dp)
+
+    val labelStyle: TextStyle
+        @Composable
+        get() = MaterialTheme.typography.labelSmall
+
+    @Composable
+    fun chipColors(): SelectableChipColors = FilterChipDefaults.filterChipColors(
+        selectedContainerColor = MaterialTheme.colorScheme.secondary,
+        selectedLabelColor = MaterialTheme.colorScheme.onSecondary,
+        labelColor = MaterialTheme.colorScheme.secondary,
+        containerColor = MaterialTheme.colorScheme.surface
+    )
+
+    @Composable
+    fun chipBorder(selected: Boolean) = FilterChipDefaults.filterChipBorder(
+        enabled = true,
+        selected = selected,
+        borderColor = MaterialTheme.colorScheme.secondary,
+    )
+
+    /**
+     * Helper to get the correct text color based on selection state.
+     * Useful for syncing [BasicTextField] colors with [Text] colors.
+     */
+    @Composable
+    fun textColor(selected: Boolean): Color =
+        if (selected) MaterialTheme.colorScheme.onSecondary else MaterialTheme.colorScheme.secondary
+}
+
+/**
+ * Creates a row of styled filter chips with static text
+ */
 @Composable
 fun DoughFilterChipRow(
     modifier: Modifier = Modifier,
@@ -67,7 +107,9 @@ fun DoughFilterChipRow(
     )
 }
 
-// Creates a row of styled filter chips, with an optional editable custom value at the end
+/**
+ * Creates a row of styled filter chips, with an optional editable custom value at the end
+ */
 @Composable
 fun DoughFilterChipRow(
     modifier: Modifier = Modifier,
@@ -102,8 +144,9 @@ fun DoughFilterChipRow(
     }
 
     Row(
-        modifier = modifier.fillMaxWidth(), //todo, do we want fillMaxWidth for sure?
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
         staticChips.forEach {
             val isSelected = !isEditingCustom && selectedValue == it
@@ -112,8 +155,11 @@ fun DoughFilterChipRow(
                 //todo, decide how we want to handle...
                 // consider if we want the fixed width or not
                 // might depend on the font size and what text we have?
-                modifier = Modifier.width(54.dp),
+                //modifier = Modifier.width(54.dp),
 
+                //todo, this gets added to the chip modifier, and
+                // works but where would we best put this and how to decide the min?
+                //modifier = Modifier.widthIn(min=56.dp),
                 selected = isSelected,
                 onClick = { staticChipOnClick(it) },
                 text = it
@@ -142,6 +188,9 @@ fun DoughFilterChipRow(
     }
 }
 
+/**
+ *
+ */
 // Styled filter chip
 @Composable
 fun DoughFilterChip(
@@ -151,21 +200,31 @@ fun DoughFilterChip(
     text: String
 ) {
     DoughFilterChip(
-        modifier = modifier,
+        //todo use widthIn here?
+        modifier = modifier
+            .width(IntrinsicSize.Min)
+            //.widthIn(min = 56.dp)
+        ,
         selected = selected,
         onClick = onClick,
         label = {
             Text(
                 modifier = Modifier.fillMaxWidth(),
                 text = text,
-                textAlign = TextAlign.Center
+                textAlign = TextAlign.Center,
+                //todo, desired or not?
+                maxLines = 1,           // Prevents wrapping to a second line
+                softWrap = false,       // Disables wrapping logic
+                //overflow = TextOverflow.Ellipsis // Adds "..." if text is too long
             )
         }
     )
 }
 
-// Styled filter chip
-// Overload allows full label composable to be passed in for custom functionality
+/**
+ * Styled filter chip
+ * Overload allows full label composable to be passed in for custom functionality
+ */
 @Composable
 fun DoughFilterChip(
     modifier: Modifier = Modifier,
@@ -173,48 +232,28 @@ fun DoughFilterChip(
     onClick: () -> Unit,
     label: @Composable () -> Unit
 ) {
-    //todo, for containerColor use theme with surface roles?
-    // also, maybe would like a larger font, but don't want to wrap accidentally
-    val fcColors = FilterChipDefaults.filterChipColors(
-        selectedContainerColor = MaterialTheme.colorScheme.secondary,
-        selectedLabelColor = MaterialTheme.colorScheme.onSecondary,
-        labelColor = MaterialTheme.colorScheme.secondary,
-        containerColor = MaterialTheme.colorScheme.surface
-    )
-
-    val fcBorder = FilterChipDefaults.filterChipBorder(
-        enabled = true,
-        selected = selected,
-        borderColor = MaterialTheme.colorScheme.secondary,
-    )
-
-    val shape = RoundedCornerShape(24.dp)
-
     FilterChip(
         modifier = modifier,
         selected = selected,
         onClick = onClick,
         label = {
             CompositionLocalProvider(
-                value = LocalTextStyle provides MaterialTheme.typography.labelSmall.copy(
-                    color =
-                        if (selected) {
-                            MaterialTheme.colorScheme.onSecondary
-                        }
-                        else {
-                            MaterialTheme.colorScheme.secondary
-                        }
+                value = LocalTextStyle provides DoughChipDefaults.labelStyle.copy(
+                    color = DoughChipDefaults.textColor(selected)
                 )
             ) {
                 label()
             }
         },
-        colors = fcColors,
-        border = fcBorder,
-        shape = shape,
+        colors = DoughChipDefaults.chipColors(),
+        border = DoughChipDefaults.chipBorder(selected),
+        shape = DoughChipDefaults.shape,
     )
 }
 
+/**
+ * Styled and editable filter chip meant for custom values
+ */
 @Composable
 fun DoughFilterChipCustom(
     modifier: Modifier = Modifier,
@@ -255,8 +294,9 @@ fun DoughFilterChipCustom(
             CustomChipBackgroundHint(
                 selected = selected,
                 hasValue = hasValue,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.secondary)
+                style = DoughChipDefaults.labelStyle,
+                color = DoughChipDefaults.textColor(selected = false)
+            )
 
             // Handles the input
             CustomChipTextField(
@@ -302,7 +342,7 @@ private fun CustomChipTextField(
     BasicTextField(
         value = inputValue,
         onValueChange =  onInputValueChange,
-        cursorBrush = SolidColor(MaterialTheme.colorScheme.onSecondary),
+        cursorBrush = SolidColor(DoughChipDefaults.textColor(selected)),
         modifier = Modifier
             .focusRequester(textFieldFocusRequester)
             .width(IntrinsicSize.Min)
@@ -317,12 +357,9 @@ private fun CustomChipTextField(
                     onCommitValueChange(inputValue)
                 }
             },
-        textStyle = MaterialTheme.typography.labelSmall.copy(
+        textStyle = DoughChipDefaults.labelStyle.copy(
             textAlign = TextAlign.Center,
-            color = if (selected)
-                MaterialTheme.colorScheme.onSecondary
-            else
-                MaterialTheme.colorScheme.secondary
+            color = DoughChipDefaults.textColor(selected)
         ),
         keyboardOptions = KeyboardOptions(
             keyboardType = keyboardType,
@@ -404,15 +441,45 @@ fun PreviewDoughFilterChips() {
                     modifier = Modifier.width(60.dp),
                     selected = selectedNumber == number,
                     onClick = { selectedNumber = number },
-                    label = {
-                        Text(
-                            text = number,
-                            modifier = Modifier.fillMaxWidth(),
-                            textAlign = TextAlign.Center
-                        )
-                    }
+                    text = number
                 )
             }
+        }
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun PreviewDoughFilterChipRow() {
+    DoughAppTheme {
+        val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+
+        // State for the static selection
+        var selectedValue by remember { mutableStateOf("1") }
+
+        // State for the custom chip
+        var customInputValue by remember { mutableStateOf("") }
+
+        Column(
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            DoughFilterChipRow(
+                focusManager = focusManager,
+                staticChips = listOf("1", "1.5", "2000"),
+                selectedValue = selectedValue,
+                onCommitValueChange = { newValue ->
+                    selectedValue = newValue
+                },
+                showCustomChip = true,
+                customInputValue = customInputValue,
+                onCustomInputValueChange = {
+                    customInputValue = it
+                },
+                keyboardType = KeyboardType.Number
+            )
         }
     }
 }
