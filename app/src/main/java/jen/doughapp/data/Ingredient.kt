@@ -4,7 +4,7 @@ import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
-import jen.doughapp.ui.models.IngredientDisplayModel
+import jen.doughapp.ui.recipe.IngredientDisplayModel
 
 @Entity(
     tableName = "ingredients",

@@ -1,4 +1,4 @@
-package jen.doughapp.ui.screens
+package jen.doughapp.ui.recipe
 
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
@@ -66,8 +66,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import jen.doughapp.data.IngredientType
 import jen.doughapp.theme.DoughAppTheme
-import jen.doughapp.ui.IngredientDraft
-import jen.doughapp.ui.RecipeViewModel
 import jen.doughapp.ui.components.DoughIngredientTypePicker
 import jen.doughapp.ui.components.DoughIngredientTypeTag
 import jen.doughapp.ui.components.DoughPrimaryButton

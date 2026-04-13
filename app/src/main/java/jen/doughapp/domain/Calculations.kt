@@ -1,7 +1,7 @@
 package jen.doughapp.domain
 
 import jen.doughapp.data.IngredientType
-import jen.doughapp.ui.models.IngredientDisplayModel
+import jen.doughapp.ui.recipe.IngredientDisplayModel
 import kotlin.math.roundToInt
 
 fun getTotalIngredientType(

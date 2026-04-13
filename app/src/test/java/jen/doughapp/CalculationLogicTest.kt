@@ -4,7 +4,7 @@ import jen.doughapp.data.Ingredient
 import jen.doughapp.data.IngredientType
 import jen.doughapp.data.toDisplayModel
 import jen.doughapp.domain.StarterRatio
-import jen.doughapp.ui.models.IngredientDisplayModel
+import jen.doughapp.ui.recipe.IngredientDisplayModel
 import jen.doughapp.ui.screens.getAmount
 import jen.doughapp.ui.screens.getRatioSum
 import jen.doughapp.ui.screens.getTargetAmountFromStarterAmount

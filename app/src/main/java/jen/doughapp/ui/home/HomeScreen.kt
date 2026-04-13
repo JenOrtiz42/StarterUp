@@ -1,4 +1,4 @@
-package jen.doughapp.ui.screens
+package jen.doughapp.ui.home
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Spacer
@@ -28,8 +28,8 @@ import jen.doughapp.R
 import jen.doughapp.data.Recipe
 import jen.doughapp.data.RecipeWithIngredients
 import jen.doughapp.theme.DoughAppTheme
-import jen.doughapp.ui.RecipeViewModel
-import jen.doughapp.ui.RecipeViewModelFactory
+import jen.doughapp.ui.recipe.RecipeViewModel
+import jen.doughapp.ui.recipe.RecipeViewModelFactory
 import jen.doughapp.ui.components.DoughLogoIcon
 import jen.doughapp.ui.components.DoughPrimaryButton
 import jen.doughapp.ui.components.DoughRecipeList

@@ -5,13 +5,11 @@ import io.mockk.every
 import io.mockk.mockk
 import jen.doughapp.data.RecipeRepository
 import jen.doughapp.data.RecipeWithIngredients
-import jen.doughapp.ui.IngredientDraft
-import jen.doughapp.ui.RecipeViewModel
+import jen.doughapp.ui.recipe.IngredientDraft
+import jen.doughapp.ui.recipe.RecipeViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain

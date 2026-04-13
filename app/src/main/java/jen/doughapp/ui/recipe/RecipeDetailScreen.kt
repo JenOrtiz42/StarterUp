@@ -1,4 +1,4 @@
-package jen.doughapp.ui.screens
+package jen.doughapp.ui.recipe
 
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -57,7 +57,6 @@ import jen.doughapp.theme.DoughAppTheme
 import jen.doughapp.theme.Red50
 import jen.doughapp.theme.RedIconBG
 import jen.doughapp.theme.RedIconTint
-import jen.doughapp.ui.RecipeViewModel
 import jen.doughapp.ui.components.DoughAmountEditBox
 import jen.doughapp.ui.components.DoughCard
 import jen.doughapp.ui.components.DoughFilterChipRow
@@ -67,8 +66,9 @@ import jen.doughapp.ui.components.DoughPrimaryButton
 import jen.doughapp.ui.components.DoughSectionHeader
 import jen.doughapp.ui.components.DoughTag
 import jen.doughapp.ui.components.DoughTopAppBar
-import jen.doughapp.ui.models.IngredientDisplayModel
+import jen.doughapp.ui.recipe.IngredientDisplayModel
 import jen.doughapp.ui.navigation.Screen
+import jen.doughapp.ui.utils.formatAmount
 import jen.doughapp.ui.utils.formatBakersPercentage
 import jen.doughapp.ui.utils.formatMultiplier
 
@@ -553,14 +553,8 @@ fun IngredientValueField(
     multiplier: Double,
     onMultiplierChange: (Double) -> Unit
 ) {
-    //todo, make formatting function
-    // 1. Calculate the raw value
     val rawValue = ingredient.amount * multiplier
-
-    // 2. Format: Up to 2 decimals, but strip trailing zeros and the dot if it's a whole number
-    val displayValue = "%.2f".format(rawValue)
-        .trimEnd('0')
-        .trimEnd('.')
+    val displayValue = rawValue.formatAmount()
 
     var localText by remember { mutableStateOf(displayValue) }
     var isFocused by remember { mutableStateOf(false) }

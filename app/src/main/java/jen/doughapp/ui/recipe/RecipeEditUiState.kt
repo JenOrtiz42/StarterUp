@@ -1,4 +1,4 @@
-package jen.doughapp.ui
+package jen.doughapp.ui.recipe
 
 import jen.doughapp.data.IngredientType
 

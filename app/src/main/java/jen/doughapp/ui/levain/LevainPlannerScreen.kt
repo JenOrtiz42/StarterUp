@@ -1,4 +1,4 @@
-package jen.doughapp.ui.screens
+package jen.doughapp.ui.levain
 
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -32,12 +32,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.OffsetMapping
-import androidx.compose.ui.text.input.TransformedText
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -45,15 +41,12 @@ import jen.doughapp.R
 import jen.doughapp.domain.LevainIngredients
 import jen.doughapp.domain.StarterRatio
 import jen.doughapp.theme.DoughAppTheme
-import jen.doughapp.theme.Red50
 import jen.doughapp.ui.components.DoughAmountEditBox
 import jen.doughapp.ui.components.DoughCard
 import jen.doughapp.ui.components.DoughFilterChip
 import jen.doughapp.ui.components.DoughFilterChipRow
 import jen.doughapp.ui.components.DoughSectionHeader
 import jen.doughapp.ui.components.DoughTopAppBar
-import jen.doughapp.ui.utils.formatMultiplier
-import kotlin.math.roundToInt
 
 /*
 todo, datastore for build ratios, and a way to edit them (long press?)

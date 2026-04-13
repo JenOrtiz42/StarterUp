@@ -1,4 +1,4 @@
-package jen.doughapp.ui
+package jen.doughapp.ui.recipe
 
 import android.util.Log
 import androidx.lifecycle.SavedStateHandle
@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -47,7 +48,7 @@ class RecipeViewModel(
     val multiplier: StateFlow<Double> = _currentRecipeId
         .flatMapLatest { id ->
             if (id == null || id == -1L) {
-                kotlinx.coroutines.flow.flowOf(1.0)
+                flowOf(1.0)
             } else {
                 repository.getSavedMultiplier(id)
             }
@@ -76,7 +77,7 @@ class RecipeViewModel(
     val customMultiplier: StateFlow<Double?> = _currentRecipeId
         .flatMapLatest { id ->
             if (id == null || id == -1L) {
-                kotlinx.coroutines.flow.flowOf(null)
+                flowOf(null)
             } else {
                 repository.getSavedCustomMultiplier(id)
             }
@@ -95,7 +96,7 @@ class RecipeViewModel(
     val recipeWithIngredients: StateFlow<RecipeWithIngredients?> = _currentRecipeId
         .flatMapLatest { id ->
             if (id == null || id == -1L) {
-                kotlinx.coroutines.flow.flowOf(null)
+                flowOf(null)
             } else {
                 repository.getRecipeById(id)
             }
