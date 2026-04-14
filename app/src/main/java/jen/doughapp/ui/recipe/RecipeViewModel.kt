@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
+import androidx.navigation.toRoute
 import jen.doughapp.data.Ingredient
 import jen.doughapp.data.IngredientType
 import jen.doughapp.data.Recipe
@@ -14,7 +15,10 @@ import jen.doughapp.data.RecipeRepository
 import jen.doughapp.data.RecipeWithIngredients
 import jen.doughapp.data.toDisplayModel
 import jen.doughapp.domain.getHydration
+import jen.doughapp.ui.navigation.RecipeDetail
+import jen.doughapp.ui.navigation.RecipeEdit
 import jen.doughapp.ui.utils.formatMultiplier
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -34,9 +38,19 @@ class RecipeViewModel(
     savedStateHandle: SavedStateHandle
 ) : ViewModel()
 {
-    // Keep this for easy access to the initial ID (must match name in NavGraph route)
-    val recipeId: Long = savedStateHandle["recipeId"] ?: -1L
-    private val _currentRecipeId = MutableStateFlow<Long?>(recipeId)
+    private val args = try {
+        //Try to get args from RecipeEdit
+        savedStateHandle.toRoute<RecipeEdit>()
+    } catch (e: Exception) {
+        // Fallback for when we navigated via RecipeDetail instead
+        val detailArgs = savedStateHandle.toRoute<RecipeDetail>()
+        RecipeEdit(detailArgs.recipeId)
+    }
+
+    val recipeId = args.recipeId
+
+    //todo, review these flows; there are some issues now, and also looking more
+    // complicated than it probably needs to
 
     private val _uiState = MutableStateFlow(RecipeUiState())
     val uiState: StateFlow<RecipeUiState> = _uiState.asStateFlow()
@@ -48,14 +62,9 @@ class RecipeViewModel(
     private val _multiplierOverride = MutableStateFlow<Double?>(null)
 
     // The recipe scaling multiplier
-    val multiplier: StateFlow<Double> = _currentRecipeId
-        .flatMapLatest { id ->
-            if (id == null || id == -1L) {
-                flowOf(1.0)
-            } else {
-                repository.getSavedMultiplier(id)
-            }
-        }
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val multiplier: StateFlow<Double> =
+        (if (recipeId == -1L) flowOf(1.0) else repository.getSavedMultiplier(recipeId))
         .combine(_multiplierOverride) { dbValue, override ->
             // If the database has caught up to our override,
             // we can safely clear the override
@@ -77,14 +86,9 @@ class RecipeViewModel(
     private val _customMultiplierInput = MutableStateFlow("")
     val customMultiplierInput: StateFlow<String> = _customMultiplierInput.asStateFlow()
 
-    val customMultiplier: StateFlow<Double?> = _currentRecipeId
-        .flatMapLatest { id ->
-            if (id == null || id == -1L) {
-                flowOf(null)
-            } else {
-                repository.getSavedCustomMultiplier(id)
-            }
-        }
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val customMultiplier: StateFlow<Double?> =
+        (if (recipeId == -1L) flowOf(null) else repository.getSavedCustomMultiplier(recipeId))
         .onEach { loadedValue ->
             // Sync the raw input string whenever the database value changes.
             // This handles initial load and external resets
@@ -96,44 +100,35 @@ class RecipeViewModel(
             initialValue = null
         )
 
-    val recipes: StateFlow<List<RecipeWithIngredients>> = repository.allRecipes.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000),
-        initialValue = emptyList()
-    )
+    val recipes: StateFlow<List<RecipeWithIngredients>> = repository.allRecipes
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
 
     init {
         // We observe the ID flow. If it changes, we fetch the data and update UI state.
         observeRecipeData()
     }
 
-    //todo
-    //a couple things now:
-    //2. On detail, when there is no custom value, it fills in with the
-    // common multiplier value instead
-    //3. On detail, when common multiplier is selected, and a custom value is entered,
-    // sometimes fills in with the common multiplier value instead
-    //4. (Probably not due to recent changes) On edit, invalid ingredients are allowed to be
-    // saved (ie. 0% or no name)
-
+    @OptIn(ExperimentalCoroutinesApi::class)
     private fun observeRecipeData() {
         viewModelScope.launch {
-            _currentRecipeId
-                .flatMapLatest { id ->
-                    if (id == null || id == -1L) {
-                        // Return a flow that just emits a "New Recipe" state
-                        flowOf(Triple(id, null, 1.0))
-                    } else {
-                        // Return the combined database + multiplier flow
-                        combine(
-                            repository.getRecipeById(id),
-                            multiplier
-                        ) { recipeData, currentMultiplier ->
-                            Triple(id, recipeData, currentMultiplier)
-                        }
-                    }
+            val dataFlow = if (recipeId == -1L) {
+                // Return a flow that just emits a "New Recipe" state
+                flowOf(Triple(recipeId, null, 1.0))
+            } else {
+                // Return the combined database + multiplier flow
+                combine(
+                    repository.getRecipeById(recipeId),
+                    multiplier
+                ) { recipeData, currentMultiplier ->
+                    Triple(recipeId, recipeData, currentMultiplier)
                 }
-                .collect { (id, recipeData, currentMultiplier) ->
+            }
+
+            dataFlow.collect { (id, recipeData, currentMultiplier) ->
                     // Now we perform the update logic once per emission
                     if (recipeData == null) {
                         val newDraft = RecipeDraft()
@@ -151,18 +146,18 @@ class RecipeViewModel(
                             it.toDisplayModel(recipeData.recipe.totalFlourAmount)
                         }
 
-                        // todo, starterHydration const for now, allow changing later, w/ saved levains
-                        // (I would put it up top, but I expect this to need data in the future)
-                        val starterHydration = 100
-
-                        val hydration = getHydration(displayIngredients, starterHydration)
+                        val hydration = getHydration(displayIngredients)
 
                         _uiState.update { currentState ->
                             currentState.copy(
                                 isLoading = false,
                                 recipe = recipeDraft,
-                                // Note: Only set initialRecipe if it is currently the "Dummy/Empty" state.
-                                initialRecipe = if (currentState.initialRecipe.id != id) recipeDraft else currentState.initialRecipe,
+                                // Note: Only set initialRecipe once when the data first loads
+                                initialRecipe = if (currentState.initialRecipe.id != id) {
+                                    recipeDraft
+                                } else {
+                                    currentState.initialRecipe
+                                },
                                 displayIngredients = displayIngredients,
                                 multiplier = currentMultiplier,
                                 hydration = hydration,
@@ -322,8 +317,7 @@ class RecipeViewModel(
         val isValid = newMultiplier != null && newMultiplier > 0
         val isCommon = commonMultipliers.contains(newMultiplier)
 
-        // Use the reactive ID to ensure we are targeting the same record the UI is watching
-        val id = _currentRecipeId.value ?: return
+        val id = recipeId
         if (id == -1L) return
 
         // Optimistic updates

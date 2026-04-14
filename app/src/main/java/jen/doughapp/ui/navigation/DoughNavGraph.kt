@@ -6,9 +6,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
-import androidx.navigation.NavType
 import androidx.navigation.compose.composable
-import androidx.navigation.navArgument
+import androidx.navigation.toRoute
 import jen.doughapp.DoughApplication
 import jen.doughapp.data.RecipeRepository
 import jen.doughapp.ui.home.HomeScreen
@@ -25,24 +24,22 @@ fun NavGraphBuilder.doughGraph(
     appScope: CoroutineScope,
     repository: RecipeRepository
 ) {
-    composable(Screen.Home.route) {
+    composable<Home> {
         HomeScreen(
             onRecipeClick = { id ->
-                navController.navigate(Screen.RecipeDetail.createRoute(id))
+                navController.navigate(RecipeDetail(recipeId = id))
             },
             onAddNewRecipe = {
-                navController.navigate(Screen.RecipeEdit.createRoute())
+                navController.navigate(RecipeEdit())
             },
             onEditRecipe = { id ->
-                navController.navigate(Screen.RecipeEdit.createRoute(id))
+                navController.navigate(RecipeEdit(recipeId = id))
             }
         )
     }
 
-    composable(
-        route = Screen.RecipeDetail.route,
-        arguments = listOf(navArgument("recipeId") { type = NavType.LongType })
-    ) {
+    composable<RecipeDetail>
+    {
         val viewModel: RecipeViewModel = viewModel(
             factory = RecipeViewModelFactory(repository)
         )
@@ -54,13 +51,8 @@ fun NavGraphBuilder.doughGraph(
         )
     }
 
-    composable(
-        route = Screen.RecipeEdit.route,
-        arguments = listOf(navArgument("recipeId") {
-            type = NavType.LongType
-            defaultValue = -1L
-        })
-    ) {
+    composable<RecipeEdit>
+    {
         val viewModel: RecipeViewModel = viewModel(
             factory = RecipeViewModelFactory(repository)
         )
@@ -71,20 +63,12 @@ fun NavGraphBuilder.doughGraph(
         )
     }
 
-    composable(
-        route = Screen.LevainPlanner.route,
-        arguments = listOf(
-            navArgument("overrideAmount") {
-                type = NavType.StringType
-                nullable = true
-                defaultValue = null
-            }
-        )
-    ) { backStackEntry ->
+    composable<LevainPlanner>
+    { backStackEntry ->
         val context = LocalContext.current
         val screenPrefs = (context.applicationContext as DoughApplication).screenPreferences
 
-        val overrideAmount = backStackEntry.arguments?.getString("overrideAmount")
+        val overrideAmount = backStackEntry.toRoute<LevainPlanner>().overrideAmount
         val savedTarget by screenPrefs.getLevainTarget().collectAsState(initial = null)
 
         LevainScreen(
@@ -92,18 +76,10 @@ fun NavGraphBuilder.doughGraph(
             // If we have a direct override (from Recipe Detail), use it.
             // Otherwise, use the last saved value from preferences.
             overrideAmount = overrideAmount,
-//            initialTargetAmount = if (overrideAmount == null) savedTarget else null,
-//            onTargetAmountUpdated = { newAmount ->
-//                if (overrideAmount == null) {
-//                    appScope.launch {
-//                        screenPrefs.saveLevainTarget(newAmount)
-//                    }
-//                }
-//            }
         )
     }
 
-    composable(Screen.Timers.route) {
+    composable<Timers> {
         TimersScreen()
     }
 }

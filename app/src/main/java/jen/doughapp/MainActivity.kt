@@ -24,16 +24,19 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import jen.doughapp.theme.DoughAppTheme
 import jen.doughapp.ui.components.DoughNavBar
-import jen.doughapp.ui.navigation.Screen
+import jen.doughapp.ui.navigation.Home
+import jen.doughapp.ui.navigation.LevainPlanner
+import jen.doughapp.ui.navigation.Timers
 import jen.doughapp.ui.navigation.doughGraph
 
-val navBarScreens = listOf(Screen.Home, Screen.LevainPlanner, Screen.Timers)
+val navBarScreens = listOf(Home, LevainPlanner(), Timers)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -56,19 +59,22 @@ fun MainApp() {
     val appScope = app.applicationScope
 
     val navBackStackEntry by navController.currentBackStackEntryAsState()
-    val currentRoute = navBackStackEntry?.destination?.route
+    val currentDestination = navBackStackEntry?.destination
 
-    // Only show bottom bar on main tabs
-    val showBottomBar = currentRoute in navBarScreens.map { it.route }
+    // Check if the current destination matches any of our main tabs
+    // hasRoute<T>() is the type-safe way to check where you are
+    val showBottomBar = navBarScreens.any { screen ->
+        currentDestination?.hasRoute(screen::class) == true
+    }
 
     Scaffold(
         bottomBar = {
             if (showBottomBar) {
                 DoughNavBar(
-                    selectedRoute = currentRoute,
+                    currentDestination = currentDestination,
                     navItems = navBarScreens,
-                    onNavigate = { navItem ->
-                        navController.navigate(navItem.createRoute()) {
+                    onNavigate = { screen ->
+                        navController.navigate(screen) {
                             popUpTo(navController.graph.findStartDestination().id) {
                                 saveState = true
                             }
@@ -86,7 +92,7 @@ fun MainApp() {
     ) { innerPadding ->
         NavHost(
             navController = navController,
-            startDestination = Screen.Home.route,
+            startDestination = Home,
             //modifier = Modifier.padding(innerPadding),
             modifier = Modifier.padding(
                 top = innerPadding.calculateTopPadding(),
@@ -123,8 +129,8 @@ fun MainAppPreview() {
             Scaffold(
                 bottomBar = {
                     DoughNavBar(
-                        selectedRoute = "recipes",
-                        navItems = navBarScreens,
+                        currentDestination = null,
+                        navItems = listOf(Home, LevainPlanner(), Timers),
                         onNavigate = { }
                     )
                 }

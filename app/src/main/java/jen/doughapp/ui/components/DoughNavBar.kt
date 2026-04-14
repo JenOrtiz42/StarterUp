@@ -26,16 +26,23 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import jen.doughapp.navBarScreens
+import androidx.navigation.NavDestination
+import androidx.navigation.NavDestination.Companion.hasRoute
+import jen.doughapp.R
 import jen.doughapp.theme.DoughAppTheme
 import jen.doughapp.theme.WarmBackground100
-import jen.doughapp.ui.navigation.Screen
+import jen.doughapp.ui.navigation.Home
+import jen.doughapp.ui.navigation.LevainPlanner
+import jen.doughapp.ui.navigation.Timers
 
 @Composable
 fun DoughNavBar(
-    selectedRoute: String?,
-    navItems: List<Screen>,
-    onNavigate: (Screen) -> Unit
+    currentDestination: NavDestination?,
+    navItems: List<Any>, // List of our objects (Home, LevainPlanner, etc)
+    onNavigate: (Any) -> Unit
+//    selectedRoute: String?,
+//    navItems: List<Screen>,
+//    onNavigate: (Screen) -> Unit
 ) {
     //todo, navItems should be passed in, not imported?
 
@@ -80,8 +87,10 @@ fun DoughNavBar(
             )
             {
                 navItems.forEach { screen ->
-                    NavigationBarItem(
+                    val isSelected = currentDestination?.hasRoute(route = screen::class) == true
 
+                    //todo, clean up styles and everything
+                    NavigationBarItem(
                         icon = {
                             // We wrap Icon and Text in a Column inside the 'icon' slot.
                             // This forces the indicator pill to wrap both
@@ -91,17 +100,17 @@ fun DoughNavBar(
                                 //modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
                             ) {
                                 Icon(
-                                    painterResource(id = screen.icon),
+                                    painter = painterResource(id = getIconForScreen(screen)),
                                     contentDescription = null
                                 )
                                 Text(
-                                    text = screen.label,
+                                    text = getLabelForScreen(screen),
                                     style = MaterialTheme.typography.labelSmall.copy(
                                         //note: interestingly, the way it's set up the
                                         //color of the text changes before the color of the icon.
                                         // we have this set up here because labelSmall has a specific color
                                         // we could reconsider
-                                        color = if (selectedRoute == screen.route) {
+                                        color = if (isSelected) {
                                             MaterialTheme.colorScheme.primary
                                         } else {
                                             MaterialTheme.colorScheme.onSurfaceVariant
@@ -111,9 +120,8 @@ fun DoughNavBar(
                             }
                         },
                         label = null,
-                        //label = { Text(screen.label) },
-                        selected = selectedRoute == screen.route,
-                        //onClick = { onNavigate(screen.route) },
+                        //label = { Text(getLabelForScreen(screen)) },
+                        selected = isSelected,
                         onClick = { onNavigate(screen) },
                         colors = NavigationBarItemDefaults.colors(
                             // UNIFIED COLORS: Make icon and text match
@@ -133,7 +141,20 @@ fun DoughNavBar(
     }
 }
 
+// Helper to handle labels since we aren't using the old Screen class
+fun getLabelForScreen(screen: Any): String = when (screen) {
+    is Home -> "Recipes"
+    is LevainPlanner -> "Levain"
+    is Timers -> "Timers"
+    else -> ""
+}
 
+fun getIconForScreen(screen: Any): Int = when (screen) {
+    is Home -> R.drawable.bakery_dining_24px
+    is LevainPlanner -> R.drawable.calculate_24px
+    is Timers -> R.drawable.alarm_24px
+    else -> R.drawable.bakery_dining_24px
+}
 
 // 1. Create a helper for the soft shadow
 fun Modifier.softShadow(
@@ -194,8 +215,8 @@ fun DoughNavBarPreview() {
                     .padding(top = 32.dp, start = 8.dp, end = 8.dp, bottom = 8.dp)
             ) {
                 DoughNavBar(
-                    selectedRoute = "recipes",
-                    navItems = navBarScreens,
+                    currentDestination = null, // Mock destination
+                    navItems = listOf(Home, LevainPlanner(), Timers),
                     onNavigate = {}
                 )
             }

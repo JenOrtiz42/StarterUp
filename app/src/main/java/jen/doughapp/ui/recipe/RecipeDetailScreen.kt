@@ -47,8 +47,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import jen.doughapp.data.IngredientType
-import jen.doughapp.data.toDisplayModel
-import jen.doughapp.domain.getHydration
 import jen.doughapp.domain.getTotalIngredientType
 import jen.doughapp.theme.Brown40
 import jen.doughapp.theme.BrownIconBG
@@ -66,8 +64,7 @@ import jen.doughapp.ui.components.DoughPrimaryButton
 import jen.doughapp.ui.components.DoughSectionHeader
 import jen.doughapp.ui.components.DoughTag
 import jen.doughapp.ui.components.DoughTopAppBar
-import jen.doughapp.ui.recipe.IngredientDisplayModel
-import jen.doughapp.ui.navigation.Screen
+import jen.doughapp.ui.navigation.LevainPlanner
 import jen.doughapp.ui.utils.formatAmount
 import jen.doughapp.ui.utils.formatBakersPercentage
 import jen.doughapp.ui.utils.formatHydration
@@ -129,8 +126,7 @@ fun RecipeDetailScreen(
 
             // Limit to 2 decimal points
             val starterStr = "%.2f".format(scaledStarter)
-            navController.navigate(
-                Screen.LevainPlanner.createRoute(starterStr))
+            navController.navigate(LevainPlanner(overrideAmount = starterStr))
         }
     )
 }
