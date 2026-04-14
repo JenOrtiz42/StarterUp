@@ -20,6 +20,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -37,6 +39,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import jen.doughapp.R
 import jen.doughapp.domain.LevainIngredients
 import jen.doughapp.domain.StarterRatio
@@ -62,32 +65,62 @@ make it easy to type, just three numbers, auto colons
 
 @Composable
 fun LevainScreen(
-    modifier: Modifier = Modifier,
     onBack: () -> Unit,
     overrideAmount: String? = null,
-    initialTargetAmount: String? = null,
-    onTargetAmountUpdated: (String) -> Unit = {}
+    viewModel: LevainViewModel = viewModel(factory = LevainViewModel.Factory),
+    //initialTargetAmount: String? = null,
+    //onTargetAmountUpdated: (String) -> Unit = {}
 ) {
-    if (initialTargetAmount == null && overrideAmount == null) {
-        return
+    val uiState by viewModel.uiState.collectAsState()
+
+    //todo, do we want to do it this way? want to make sure override doesn't get
+    // saved to prefs
+    // Handle external updates (like from a recipe detail screen)
+    LaunchedEffect(overrideAmount) {
+        if (overrideAmount != null) {
+            viewModel.onEvent(LevainEvent.UpdateTargetAmount(overrideAmount))
+        }
     }
 
+    LevainScreenContent(
+        uiState = uiState,
+        onEvent = viewModel::onEvent,
+        onBack = onBack
+    )
+}
+
+@Composable
+fun LevainScreenContent(
+    uiState: LevainUiState,
+    onEvent: (LevainEvent) -> Unit,
+    onBack: () -> Unit,
+    modifier : Modifier = Modifier
+) {
     val focusManager = LocalFocusManager.current
 
-    val baseValue = overrideAmount ?: initialTargetAmount ?: "200"
-    var targetAmount by remember(baseValue) { mutableStateOf(baseValue) }
+//    if (initialTargetAmount == null && overrideAmount == null) {
+//        return
+//    }
+
+    //val baseValue = overrideAmount ?: initialTargetAmount ?: "200"
+    //var targetAmount by remember(baseValue) { mutableStateOf(baseValue) }
+
+    var localText by remember(uiState.targetAmount) {
+        mutableStateOf(uiState.targetAmount)
+    }
+//    var localText by remember(targetAmount) {
+//        mutableStateOf(targetAmount)
+//    }
 
     //todo, save these, have a default maybe (1:2:2)
-    val ratios = listOf(
+    val commonRatios = listOf(
         //StarterRatio(1, 1, 1),
         StarterRatio(1, 2, 2),
         StarterRatio(1, 3, 3),
         StarterRatio(1, 5, 5),
     )
-    var selectedRatio by remember { mutableStateOf<StarterRatio?>(ratios[0]) }
-    var localText by remember(targetAmount) {
-        mutableStateOf(targetAmount)
-    }
+    var selectedRatio by remember { mutableStateOf<StarterRatio?>(commonRatios[0]) }
+
     var isFocused by remember { mutableStateOf(false) }
 
     Column(
@@ -129,15 +162,24 @@ fun LevainScreen(
                     value = localText,
                     onValueChange = { localText = it },
                     unitText = "g",
-                    onDone = { focusManager.clearFocus() },
+                    onDone = {
+                        focusManager.clearFocus()
+                        onEvent(LevainEvent.UpdateTargetAmount(localText))
+                    },
                     onFocusChanged = { focusState ->
-                        if (isFocused && !focusState.isFocused) {
-                            // We're no longer focused -- activate the change
-                            targetAmount = localText
-                            onTargetAmountUpdated(targetAmount)
+                        if (!focusState.isFocused) {
+                            onEvent(LevainEvent.UpdateTargetAmount(localText))
                         }
-                        isFocused = focusState.isFocused
                     }
+//                    onDone = { focusManager.clearFocus() },
+//                    onFocusChanged = { focusState ->
+//                        if (isFocused && !focusState.isFocused) {
+//                            // We're no longer focused -- activate the change
+//                            targetAmount = localText
+//                            onTargetAmountUpdated(targetAmount)
+//                        }
+//                        isFocused = focusState.isFocused
+//                    }
                 )
             }
 
@@ -147,7 +189,7 @@ fun LevainScreen(
                 text = "Build Ratio"
             )
 
-            val formattedRatios = ratios.map {
+            val formattedRatios = commonRatios.map {
                 it.displayString
             }
 
@@ -159,9 +201,17 @@ fun LevainScreen(
             DoughFilterChipRow(
                 modifier = Modifier.fillMaxWidth(),
                 focusManager = focusManager,
-                staticChips = formattedRatios,
-                selectedValue = selectedRatio?.displayString ?: "",
-                onCommitValueChange = updateSelectedRatio,
+                staticChips = uiState.ratios.map { it.displayString },
+                selectedValue = uiState.selectedRatio?.displayString ?: "",
+                onCommitValueChange = { newValue ->
+                    StarterRatio.fromString(newValue)?.let {
+                        onEvent(LevainEvent.SelectRatio(it))
+                    }
+                }
+//
+//                staticChips = formattedRatios,
+//                selectedValue = selectedRatio?.displayString ?: "",
+//                onCommitValueChange = updateSelectedRatio,
 //                showCustomChip = true,
 //                customInputValue = customMultiplierInput,
 //                onCustomInputValueChange = { newValue ->
@@ -197,9 +247,9 @@ fun LevainScreen(
                 )
             }
 
-            val amounts = remember(targetAmount, selectedRatio) {
-                selectedRatio?.calculateAmounts(targetAmount) ?: LevainIngredients(0, 0, 0)
-            }
+//            val amounts = remember(targetAmount, selectedRatio) {
+//                selectedRatio?.calculateAmounts(targetAmount) ?: LevainIngredients(0, 0, 0)
+//            }
 
             Spacer(modifier = Modifier.height(24.dp))
 
@@ -225,21 +275,27 @@ fun LevainScreen(
 
                     AmountRow(
                         text = "Starter",
-                        amount = amounts.starterWeight,
-                        selectedRatio = selectedRatio!!,
-                        iconId = R.drawable.grain_24px,
-                        onUpdateTargetAmount = { newTarget ->
-                            targetAmount = newTarget
-                            onTargetAmountUpdated(newTarget)
-                        })
+                        amount = uiState.ingredients.starterWeight,
+                        selectedRatio = uiState.selectedRatio!!,
+                        iconId = R.drawable.grain_24px)
+
+//                    AmountRow(
+//                        text = "Starter",
+//                        amount = amounts.starterWeight,
+//                        selectedRatio = selectedRatio!!,
+//                        iconId = R.drawable.grain_24px,
+//                        onUpdateTargetAmount = { newTarget ->
+//                            targetAmount = newTarget
+//                            onTargetAmountUpdated(newTarget)
+//                        })
                     HorizontalDivider(
                         thickness = 0.5.dp,
                         color = MaterialTheme.colorScheme.outlineVariant
                     )
                     AmountRow(
                         text ="Flour",
-                        amount = amounts.flourWeight,
-                        selectedRatio = selectedRatio!!,
+                        amount = uiState.ingredients.flourWeight,
+                        selectedRatio = uiState.selectedRatio!!,
                         iconId = R.drawable.wheat_24px)
                     HorizontalDivider(
                         thickness = 0.5.dp,
@@ -247,8 +303,8 @@ fun LevainScreen(
                     )
                     AmountRow(
                         text ="Water",
-                        amount = amounts.waterWeight,
-                        selectedRatio = selectedRatio!!,
+                        amount = uiState.ingredients.waterWeight,
+                        selectedRatio = uiState.selectedRatio!!,
                         iconId = R.drawable.water_drop_24px)
                 }
             }
@@ -391,10 +447,21 @@ fun LevainScreenPreview() {
             modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.background
         ) {
-            LevainScreen(
+            LevainScreenContent(
+                // Provide a mock state directly
+                uiState = LevainUiState(
+                    targetAmount = "250",
+                    selectedRatio = StarterRatio(1, 2, 2),
+                    ingredients = LevainIngredients(
+                        starterWeight = 50,
+                        flourWeight = 100,
+                        waterWeight = 100
+                    )
+                ),
+                onEvent = {}, // Empty lambda for actions
                 onBack = {},
-                initialTargetAmount = "250",
-                onTargetAmountUpdated = {}
+                //initialTargetAmount = "250",
+                //onTargetAmountUpdated = {}
             )
         }
     }

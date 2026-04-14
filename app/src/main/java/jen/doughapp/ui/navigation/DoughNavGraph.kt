@@ -11,15 +11,14 @@ import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import jen.doughapp.DoughApplication
 import jen.doughapp.data.RecipeRepository
-import jen.doughapp.ui.recipe.RecipeViewModel
-import jen.doughapp.ui.recipe.RecipeViewModelFactory
 import jen.doughapp.ui.home.HomeScreen
 import jen.doughapp.ui.levain.LevainScreen
 import jen.doughapp.ui.recipe.RecipeDetailScreen
 import jen.doughapp.ui.recipe.RecipeEditScreen
+import jen.doughapp.ui.recipe.RecipeViewModel
+import jen.doughapp.ui.recipe.RecipeViewModelFactory
 import jen.doughapp.ui.screens.TimersScreen
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.launch
 
 fun NavGraphBuilder.doughGraph(
     navController: NavHostController,
@@ -93,14 +92,14 @@ fun NavGraphBuilder.doughGraph(
             // If we have a direct override (from Recipe Detail), use it.
             // Otherwise, use the last saved value from preferences.
             overrideAmount = overrideAmount,
-            initialTargetAmount = if (overrideAmount == null) savedTarget else null,
-            onTargetAmountUpdated = { newAmount ->
-                if (overrideAmount == null) {
-                    appScope.launch {
-                        screenPrefs.saveLevainTarget(newAmount)
-                    }
-                }
-            }
+//            initialTargetAmount = if (overrideAmount == null) savedTarget else null,
+//            onTargetAmountUpdated = { newAmount ->
+//                if (overrideAmount == null) {
+//                    appScope.launch {
+//                        screenPrefs.saveLevainTarget(newAmount)
+//                    }
+//                }
+//            }
         )
     }
 
