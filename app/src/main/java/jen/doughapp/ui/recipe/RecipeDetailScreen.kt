@@ -70,6 +70,7 @@ import jen.doughapp.ui.recipe.IngredientDisplayModel
 import jen.doughapp.ui.navigation.Screen
 import jen.doughapp.ui.utils.formatAmount
 import jen.doughapp.ui.utils.formatBakersPercentage
+import jen.doughapp.ui.utils.formatHydration
 import jen.doughapp.ui.utils.formatMultiplier
 
 //todo: cleanup, this screen is a mess
@@ -77,14 +78,12 @@ import jen.doughapp.ui.utils.formatMultiplier
 @Composable
 fun RecipeDetailScreen(
     navController: NavController,
-    modifier: Modifier = Modifier,
     onBack: () -> Unit,
     viewModel: RecipeViewModel
 ) {
-    val recipeWithIngredients by viewModel.recipeWithIngredients.collectAsStateWithLifecycle()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    if (recipeWithIngredients == null) {
-        // Show a loading spinner or a simple message
+    if (uiState.isLoading) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text("Loading Recipe...")
         }
@@ -105,13 +104,6 @@ fun RecipeDetailScreen(
         0.5, 1.0, 1.5, 2.0
     )
 
-    val ingredients = remember(recipeWithIngredients) {
-        val totalFlour = recipeWithIngredients?.recipe?.totalFlourAmount ?: 1.0
-        recipeWithIngredients?.ingredients?.map {
-            it.toDisplayModel(totalFlour)
-        } ?: emptyList()
-    }
-
     val onMultiplierInputChange: (String) -> Unit = { input ->
         viewModel.updateMultiplier(input, commonMultipliers)
     }
@@ -121,54 +113,46 @@ fun RecipeDetailScreen(
     }
 
     RecipeDetailContent(
-        recipeName = recipeWithIngredients?.recipe?.name ?: "Loading...",
-        recipeYield = recipeWithIngredients?.recipe?.yield ?: "",
-        multiplier = multiplier,
-        customMultiplier = customMultiplier,
+        recipeName = uiState.recipe.name,
+        recipeYield = uiState.recipe.yield,
+        multiplier = uiState.multiplier,
         customMultiplierInput = customMultiplierInput,
         onMultiplierInputChange = onMultiplierInputChange,
         onCustomMultiplierInputChange = onCustomMultiplierInputChange,
         commonMultipliers = commonMultipliers,
-        ingredients = ingredients,
+        ingredients = uiState.displayIngredients,
+        hydration = uiState.hydration,
         onBack = onBack,
-
         onLevainPlannerClick = {
-            val rawStarter = getTotalIngredientType(ingredients, IngredientType.STARTER)
-            val scaledStarter = rawStarter * multiplier
+            val rawStarter = getTotalIngredientType(uiState.displayIngredients, IngredientType.STARTER)
+            val scaledStarter = rawStarter * uiState.multiplier
 
             // Limit to 2 decimal points
             val starterStr = "%.2f".format(scaledStarter)
             navController.navigate(
                 Screen.LevainPlanner.createRoute(starterStr))
-        },
-        modifier = modifier
+        }
     )
 }
 
-
-//todo, any refactoring needed to make this class "dumber"?
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RecipeDetailContent(
     recipeName: String,
     recipeYield: String,
     multiplier: Double,
-    customMultiplier: Double?, //todo hmm, do I actually need this one anymore?
     customMultiplierInput: String,
     onMultiplierInputChange: (String) -> Unit,
     onCustomMultiplierInputChange: (String) -> Unit,
     commonMultipliers: List<Double>,
     ingredients: List<IngredientDisplayModel>,
+    hydration: Double,
     onBack: () -> Unit,
     onLevainPlannerClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val focusManager = LocalFocusManager.current
     val totalWeight = ingredients.sumOf { it.amount }
-
-    // todo, const for now, allow changing later, w/ saved levains
-    val starterHydration = 100
-    val hydration = getHydration(ingredients, starterHydration)
 
     Column(
         modifier = modifier
@@ -431,7 +415,7 @@ fun RecipeDetailContent(
                             color = Brown40
                         )
                         Text(
-                            text = if (hydration > 0) "$hydration%" else "--",
+                            text = if (hydration > 0) hydration.formatHydration() else "--",
                             style = MaterialTheme.typography.headlineLarge,
                             fontWeight = FontWeight.Bold,
                             //color = Color(0xFF0D47A1), //blue
@@ -601,7 +585,6 @@ fun RecipeDetailScreenPreview() {
                 recipeName = "Sourdough Bread",
                 recipeYield = "1 loaf",
                 multiplier = 1.0,
-                customMultiplier = null,
                 customMultiplierInput = "",
                 onMultiplierInputChange = {},
                 onCustomMultiplierInputChange = {},
@@ -639,6 +622,7 @@ fun RecipeDetailScreenPreview() {
                         type = IngredientType.SALT
                     ),
                 ),
+                hydration = 70.0,
                 onBack = {},
                 onLevainPlannerClick = {}
             )

@@ -26,3 +26,12 @@ fun Double?.formatAmount() : String {
 
     return displayValue
 }
+
+fun Double?.formatHydration() : String {
+    // Display without trailing 0s, and without a decimal if it's a whole number
+    val displayValue = "%.1f".format(this)
+        .trimEnd('0')
+        .trimEnd('.')
+
+    return "${displayValue}%"
+}

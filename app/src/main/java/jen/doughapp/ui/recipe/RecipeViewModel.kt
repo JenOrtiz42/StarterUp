@@ -12,11 +12,14 @@ import jen.doughapp.data.IngredientType
 import jen.doughapp.data.Recipe
 import jen.doughapp.data.RecipeRepository
 import jen.doughapp.data.RecipeWithIngredients
+import jen.doughapp.data.toDisplayModel
+import jen.doughapp.domain.getHydration
 import jen.doughapp.ui.utils.formatMultiplier
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.flatMapLatest
@@ -35,8 +38,8 @@ class RecipeViewModel(
     val recipeId: Long = savedStateHandle["recipeId"] ?: -1L
     private val _currentRecipeId = MutableStateFlow<Long?>(recipeId)
 
-    private val _uiState = MutableStateFlow(RecipeEditUiState())
-    val uiState: StateFlow<RecipeEditUiState> = _uiState.asStateFlow()
+    private val _uiState = MutableStateFlow(RecipeUiState())
+    val uiState: StateFlow<RecipeUiState> = _uiState.asStateFlow()
 
     // A local "override" for the scaling multiplier to provide instant UI feedback
     // (This fixes a visual problem that would occur when custom multiplier
@@ -93,16 +96,6 @@ class RecipeViewModel(
             initialValue = null
         )
 
-    val recipeWithIngredients: StateFlow<RecipeWithIngredients?> = _currentRecipeId
-        .flatMapLatest { id ->
-            if (id == null || id == -1L) {
-                flowOf(null)
-            } else {
-                repository.getRecipeById(id)
-            }
-        }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
-
     val recipes: StateFlow<List<RecipeWithIngredients>> = repository.allRecipes.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
@@ -111,25 +104,73 @@ class RecipeViewModel(
 
     init {
         // We observe the ID flow. If it changes, we fetch the data and update UI state.
+        observeRecipeData()
+    }
+
+    //todo
+    //a couple things now:
+    //2. On detail, when there is no custom value, it fills in with the
+    // common multiplier value instead
+    //3. On detail, when common multiplier is selected, and a custom value is entered,
+    // sometimes fills in with the common multiplier value instead
+    //4. (Probably not due to recent changes) On edit, invalid ingredients are allowed to be
+    // saved (ie. 0% or no name)
+
+    private fun observeRecipeData() {
         viewModelScope.launch {
-            _currentRecipeId.collect { id ->
-                if (id == null || id == -1L) {
-                    val newDraft = RecipeDraft()
-                    _uiState.update {
-                        it.copy(recipe = newDraft, initialRecipe = newDraft, isLoading = false)
-                    }
-                } else {
-                    _uiState.update { it.copy(isLoading = true) }
-                    // Fetch the data once to populate the "Edit" fields
-                    val data = repository.getRecipeById(id).firstOrNull()
-                    data?.let { recipeWithIngredients ->
-                        val draft = recipeWithIngredients.toDraft() // Extension function for cleanliness
-                        _uiState.update {
-                            it.copy(recipe = draft, initialRecipe = draft, isLoading = false)
+            _currentRecipeId
+                .flatMapLatest { id ->
+                    if (id == null || id == -1L) {
+                        // Return a flow that just emits a "New Recipe" state
+                        flowOf(Triple(id, null, 1.0))
+                    } else {
+                        // Return the combined database + multiplier flow
+                        combine(
+                            repository.getRecipeById(id),
+                            multiplier
+                        ) { recipeData, currentMultiplier ->
+                            Triple(id, recipeData, currentMultiplier)
                         }
                     }
                 }
-            }
+                .collect { (id, recipeData, currentMultiplier) ->
+                    // Now we perform the update logic once per emission
+                    if (recipeData == null) {
+                        val newDraft = RecipeDraft()
+                        _uiState.update {
+                            it.copy(
+                                recipe = newDraft,
+                                initialRecipe = newDraft,
+                                displayIngredients = emptyList(),
+                                isLoading = false
+                            )
+                        }
+                    } else {
+                        val recipeDraft = recipeData.toDraft()
+                        val displayIngredients = recipeData.ingredients.map {
+                            it.toDisplayModel(recipeData.recipe.totalFlourAmount)
+                        }
+
+                        // todo, starterHydration const for now, allow changing later, w/ saved levains
+                        // (I would put it up top, but I expect this to need data in the future)
+                        val starterHydration = 100
+
+                        val hydration = getHydration(displayIngredients, starterHydration)
+
+                        _uiState.update { currentState ->
+                            currentState.copy(
+                                isLoading = false,
+                                recipe = recipeDraft,
+                                // Note: Only set initialRecipe if it is currently the "Dummy/Empty" state.
+                                initialRecipe = if (currentState.initialRecipe.id != id) recipeDraft else currentState.initialRecipe,
+                                displayIngredients = displayIngredients,
+                                multiplier = currentMultiplier,
+                                hydration = hydration,
+                                totalWeight = displayIngredients.sumOf { it.amount }
+                            )
+                        }
+                    }
+                }
         }
     }
 
@@ -354,6 +395,7 @@ class RecipeViewModelFactory(private val repository: RecipeRepository) : ViewMod
     }
 }
 
+// For dev
 fun getSampleRecipe() : RecipeWithIngredients
 {
     return RecipeWithIngredients(
