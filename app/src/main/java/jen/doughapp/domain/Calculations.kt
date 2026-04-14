@@ -34,13 +34,13 @@ fun getTotalIngredientType(
 fun getHydration(
     ingredients: List<IngredientDisplayModel>,
     starterHydration: Int?
-): Int {
+): Double {
     val totalFlour = getTotalIngredientType(ingredients, IngredientType.FLOUR, starterHydration)
     val totalLiquids = getTotalIngredientType(ingredients, IngredientType.HYDRATION, starterHydration)
 
     if (totalFlour > 0 && totalLiquids > 0) {
-        return (100 * totalLiquids / totalFlour).roundToInt()
+        return (100 * totalLiquids / totalFlour)
     }
 
-    return 0
+    return 0.0
 }

@@ -54,7 +54,7 @@ class CalculationsTest {
         val hydration = getHydration(ingredients, null)
 
         // 350 / 500 = 0.7 -> 70%
-        assertEquals(70, hydration)
+        assertEquals(70.0, hydration, 0.1)
     }
 
     @Test
@@ -71,12 +71,12 @@ class CalculationsTest {
         val hydration = getHydration(ingredients, 100)
 
         // 350 / 500 = 70%
-        assertEquals(70, hydration)
+        assertEquals(70.0, hydration, 0.1)
     }
 
     @Test
     fun `getHydration returns zero when ingredients are empty`() {
         val hydration = getHydration(emptyList(), null)
-        assertEquals(0, hydration)
+        assertEquals(0.0, hydration, 0.1)
     }
 }
