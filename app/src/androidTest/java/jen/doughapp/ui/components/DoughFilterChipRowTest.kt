@@ -34,6 +34,9 @@ class DoughFilterChipRowTest {
             }
         }
 
+        // Verify initial visual state
+        composeTestRule.onNodeWithText("1").assertIsSelected()
+
         // Click on chip "2"
         composeTestRule.onNodeWithText("2").performClick()
 
@@ -79,10 +82,7 @@ class DoughFilterChipRowTest {
         composeTestRule.onNodeWithText("1").assertIsNotSelected()
 
         // Verify that the chip with a child with text "99" is selected
-        val isFilterChip = SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Checkbox)
-        composeTestRule
-            .onNode(isFilterChip and hasAnyChild(hasText("99")))
-            .assertIsSelected()
+        composeTestRule.onNode(hasAnyChild(hasText("99"))).assertIsSelected()
 
         // Verify the text node with "99" is not yet focused for editing
         assert(committedValue == "99")
@@ -131,5 +131,8 @@ class DoughFilterChipRowTest {
         assert(committedValue == "55")
         // Once committed, it should no longer be focused
         composeTestRule.onNodeWithText("55", useUnmergedTree = true).assertIsNotFocused()
+
+        // But the chip should be selected
+        composeTestRule.onNode(hasAnyChild(hasText("55"))).assertIsSelected()
     }
 }
