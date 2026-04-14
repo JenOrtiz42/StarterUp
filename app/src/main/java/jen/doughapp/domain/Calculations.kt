@@ -33,7 +33,7 @@ fun getTotalIngredientType(
 
 fun getHydration(
     ingredients: List<IngredientDisplayModel>,
-    starterHydration: Int?
+    starterHydration: Int? = 100
 ): Double {
     val totalFlour = getTotalIngredientType(ingredients, IngredientType.FLOUR, starterHydration)
     val totalLiquids = getTotalIngredientType(ingredients, IngredientType.HYDRATION, starterHydration)
