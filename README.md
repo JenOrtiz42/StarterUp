@@ -1,3 +1,6 @@
+> ⚠️ **Project Status: Work in Progress** ⚠️
+> This repository is a live look at my development process. The app is functioning, but expect some messy code, in-progress features, and stray comments left by me or AI. You will see this changing over the course of many commits. I get things to work first, then refactor to make the code actually maintainable.
+
 <img alt="app icon" src="app/src/main/res/mipmap-xxxhdpi/ic_launcher.webp" width="60">
 
 ## Story Time
@@ -15,9 +18,6 @@ Scroll down to the **What I Learned** section for what happened next.
 ## Starter Up
 
 Starter Up is an Android application designed for sourdough bakers to scale recipes and calculate ingredients. My biggest priority is to make the app a good user experience.
-
-> ⚠️ **Project Status: Work in Progress** ⚠️
-> This repository is a live look at my development process. The app is functioning, but expect some messy code, in-progress features, and stray comments left by me or AI. You will see this change over the course of many commits. I get things to work first, then refactor to make the code actually maintainable.
 
 ---
 
@@ -99,4 +99,4 @@ I didn't use Gemini exclusively. As I mentioned, screen layouts were inspired by
 |:--------------------------------------------------------------------------:|:------------------------------------------------------------------------------:|
 | <img src="docs/images/sourdoughvector_orig.png" width="300" alt="AI logo"> | <img src="docs/images/sourdoughvector_edit.png" width="300" alt="Edited Logo"> |
 
-All in all, it feels like I took a crash course in Android and Jetpack Compose with a personal tutor. A tutor that, no doubt, has STILL omitted things that are common knowledge for, you know, **actual** Android developers... but I suppose that's what Reddit, Medium, and StackOverflow are for.
+All in all, it feels like I took a crash course in Android (including Jetpack Compose, Room databases, UI states, etc) with a personal tutor. A tutor that, no doubt, has STILL omitted things that are common knowledge for, you know, **actual** Android developers. I've learned to ask directly about better approaches as the app grows, and about how to organize things, then I verify it with other sources online.
