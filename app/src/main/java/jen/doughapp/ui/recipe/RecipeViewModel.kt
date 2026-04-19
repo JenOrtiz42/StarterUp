@@ -19,19 +19,34 @@ import jen.doughapp.ui.navigation.RecipeDetail
 import jen.doughapp.ui.navigation.RecipeEdit
 import jen.doughapp.ui.utils.formatMultiplier
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.firstOrNull
-import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
+
+// The multiplier drives recipe scaling/weight calculations
+data class MultiplierSyncState(
+    val multiplier: Double,
+    val customMultiplierInput: String,
+    val refreshTrigger: Long = 0L
+)
+
+// Used for optimistic updates to the UI; ensures optimistic multiplier
+// and optimistic customMultiplierInput are updated at the same time
+data class OptimisticMultiplier(
+    val multiplier: Double?,
+    val customMultiplier: Double?,
+    val customMultiplierInput: String?
+)
 
 class RecipeViewModel(
     private val repository: RecipeRepository,
@@ -39,7 +54,7 @@ class RecipeViewModel(
 ) : ViewModel()
 {
     private val args = try {
-        //Try to get args from RecipeEdit
+        // Try to get args from RecipeEdit
         savedStateHandle.toRoute<RecipeEdit>()
     } catch (e: Exception) {
         // Fallback for when we navigated via RecipeDetail instead
@@ -49,56 +64,72 @@ class RecipeViewModel(
 
     val recipeId = args.recipeId
 
-    //todo, review these flows; there are some issues now, and also looking more
-    // complicated than it probably needs to
-
     private val _uiState = MutableStateFlow(RecipeUiState())
     val uiState: StateFlow<RecipeUiState> = _uiState.asStateFlow()
 
-    // A local "override" for the scaling multiplier to provide instant UI feedback
-    // (This fixes a visual problem that would occur when custom multiplier
-    // gets updated before the multiplier, causing displays based on these
-    // values to ping-pong)
-    private val _multiplierOverride = MutableStateFlow<Double?>(null)
+    // Used to provide instant UI feedback for multiplier and custom text
+    // (OptimisticMultiplier ensures that optimistic multiplier and custom values are
+    // updated at the same time)
+    private val _optimisticMultiplierState = MutableStateFlow<OptimisticMultiplier?>(null)
 
-    // The recipe scaling multiplier
+    // Used to trigger data flow updates in cases when other StateFlow dependencies haven't
+    // changed but a refresh is still needed
+    private val _syncMultiplierTrigger = MutableStateFlow(0L)
+
+    // Track launched job to update the multiplier
+    private var _updateMultiplierJob: Job? = null
+
+    // Used to sync the UI state to updated data
     @OptIn(ExperimentalCoroutinesApi::class)
-    val multiplier: StateFlow<Double> =
-        (if (recipeId == -1L) flowOf(1.0) else repository.getSavedMultiplier(recipeId))
-        .combine(_multiplierOverride) { dbValue, override ->
-            // If the database has caught up to our override,
-            // we can safely clear the override
-            if (override != null && dbValue == override) {
-                // We use a check here to avoid unnecessary re-compositions
-                _multiplierOverride.value = null
+    val multiplierSyncState: StateFlow<MultiplierSyncState> = combine(
+        if (recipeId == -1L) flowOf(1.0) else repository.getSavedMultiplier(recipeId),
+        if (recipeId == -1L) flowOf(null) else repository.getSavedCustomMultiplier(recipeId),
+        _optimisticMultiplierState,
+        _syncMultiplierTrigger
+    ) { dbMultiplier, dbCustom, optimisticState, _ ->
+
+        val isSyncing = optimisticState != null
+
+        // Check if the DB values are caught up to the optimistic values.
+        // If they are, the optimistic state will be reset to null.
+        if (isSyncing) {
+            val isMultiplierMatch = dbMultiplier == optimisticState.multiplier
+
+            // Note: If optimistic input is null, we aren't tracking a custom change, so it's a match.
+            // Otherwise, compare the numeric values (optimistic.customMultiplier vs dbCustom)
+            val isCustomTextMatch = when {
+                optimisticState.customMultiplierInput == null -> true
+                optimisticState.customMultiplier != null && dbCustom != null -> {
+                    kotlin.math.abs(dbCustom - optimisticState.customMultiplier) < 0.0001
+                }
+                else -> dbCustom == optimisticState.customMultiplier
             }
 
-            // Still return the override if it exists to keep the UI stable
-            override ?: dbValue
+            if (isMultiplierMatch && isCustomTextMatch) {
+                _optimisticMultiplierState.value = null
+            }
         }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
-            initialValue = Double.NaN
-        )
 
-    // The custom recipe scaling multiplier
-    private val _customMultiplierInput = MutableStateFlow("")
-    val customMultiplierInput: StateFlow<String> = _customMultiplierInput.asStateFlow()
+        // Determine what to show in the UI:
+        // Prioritize optimistic values, otherwise use DB values
+        val currentMultiplier = optimisticState?.multiplier ?: dbMultiplier
 
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val customMultiplier: StateFlow<Double?> =
-        (if (recipeId == -1L) flowOf(null) else repository.getSavedCustomMultiplier(recipeId))
-        .onEach { loadedValue ->
-            // Sync the raw input string whenever the database value changes.
-            // This handles initial load and external resets
-            _customMultiplierInput.value = loadedValue?.formatMultiplier() ?: ""
+        val currentCustomInput = if (optimisticState != null && optimisticState.customMultiplierInput != null) {
+            optimisticState.customMultiplierInput
+        } else {
+            dbCustom?.formatMultiplier() ?: ""
         }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
-            initialValue = null
+
+        MultiplierSyncState(
+            multiplier = currentMultiplier,
+            customMultiplierInput = currentCustomInput,
+            refreshTrigger = _syncMultiplierTrigger.value
         )
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = MultiplierSyncState(Double.NaN, "")
+    )
 
     val recipes: StateFlow<List<RecipeWithIngredients>> = repository.allRecipes
         .stateIn(
@@ -108,64 +139,70 @@ class RecipeViewModel(
         )
 
     init {
-        // We observe the ID flow. If it changes, we fetch the data and update UI state.
+        Log.d("DOUGH_DEBUG", "init called")
+
         observeRecipeData()
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
     private fun observeRecipeData() {
         viewModelScope.launch {
+            Log.d("DOUGH_DEBUG", "launch observe recipe data")
+
             val dataFlow = if (recipeId == -1L) {
-                // Return a flow that just emits a "New Recipe" state
-                flowOf(Triple(recipeId, null, 1.0))
+                flowOf(null to MultiplierSyncState(1.0, ""))
             } else {
-                // Return the combined database + multiplier flow
                 combine(
                     repository.getRecipeById(recipeId),
-                    multiplier
-                ) { recipeData, currentMultiplier ->
-                    Triple(recipeId, recipeData, currentMultiplier)
+                    multiplierSyncState
+                ) { recipeData, syncState ->
+                    recipeData to syncState
                 }
             }
 
-            dataFlow.collect { (id, recipeData, currentMultiplier) ->
-                    // Now we perform the update logic once per emission
-                    if (recipeData == null) {
-                        val newDraft = RecipeDraft()
-                        _uiState.update {
-                            it.copy(
-                                recipe = newDraft,
-                                initialRecipe = newDraft,
-                                displayIngredients = emptyList(),
-                                isLoading = false
-                            )
-                        }
-                    } else {
-                        val recipeDraft = recipeData.toDraft()
-                        val displayIngredients = recipeData.ingredients.map {
-                            it.toDisplayModel(recipeData.recipe.totalFlourAmount)
-                        }
+            dataFlow.collect { (recipeData, syncState) ->
+                // Now we perform the update logic once per emission
+                if (recipeData == null) {
+                    // If we expect a recipe (id != -1) but got null, it was deleted/missing.
+                    // If we don't expect one (id == -1), we proceed to show the New Recipe draft.
+                    if (recipeId != -1L) return@collect
 
-                        val hydration = getHydration(displayIngredients)
+                    val newDraft = RecipeDraft()
+                    _uiState.update {
+                        it.copy(
+                            recipe = newDraft,
+                            initialRecipe = newDraft,
+                            displayIngredients = emptyList(),
+                            isLoading = false
+                        )
+                    }
+                } else {
+                    val recipeDraft = recipeData.toDraft()
+                    val displayIngredients = recipeData.ingredients.map {
+                        it.toDisplayModel(recipeData.recipe.totalFlourAmount)
+                    }
+                    val hydration = getHydration(displayIngredients)
 
-                        _uiState.update { currentState ->
-                            currentState.copy(
-                                isLoading = false,
-                                recipe = recipeDraft,
-                                // Note: Only set initialRecipe once when the data first loads
-                                initialRecipe = if (currentState.initialRecipe.id != id) {
-                                    recipeDraft
-                                } else {
-                                    currentState.initialRecipe
-                                },
-                                displayIngredients = displayIngredients,
-                                multiplier = currentMultiplier,
-                                hydration = hydration,
-                                totalWeight = displayIngredients.sumOf { it.amount }
-                            )
-                        }
+                    _uiState.update { currentState ->
+                        currentState.copy(
+                            isLoading = false,
+                            refreshTrigger = syncState.refreshTrigger,
+                            recipe = recipeDraft,
+                            // Note: Only set initialRecipe once when the data first loads
+                            initialRecipe = if (currentState.initialRecipe.id != recipeId) {
+                                recipeDraft
+                            } else {
+                                currentState.initialRecipe
+                            },
+                            displayIngredients = displayIngredients,
+                            multiplier = syncState.multiplier,
+                            customMultiplierInput = syncState.customMultiplierInput,
+                            hydration = hydration,
+                            totalWeight = displayIngredients.sumOf { it.amount }
+                        )
                     }
                 }
+            }
         }
     }
 
@@ -306,70 +343,70 @@ class RecipeViewModel(
     }
 
     fun onCustomMultiplierInputChange(input: String) {
-        _customMultiplierInput.value = input
+        _uiState.update { it.copy(customMultiplierInput = input) }
     }
 
     fun updateMultiplier(input: String, commonMultipliers: List<Double>) {
-        // If we are still in the NaN state, the database hasn't reported back yet.
-        if (multiplier.value.isNaN()) return
+        if (recipeId == -1L) return
+
+        // If multiplier is NaN, the initial DB load hasn't finished yet.
+        if (_uiState.value.multiplier.isNaN()) {
+            return
+        }
 
         val newMultiplier = input.toDoubleOrNull()
         val isValid = newMultiplier != null && newMultiplier > 0
-        val isCommon = commonMultipliers.contains(newMultiplier)
+        val isCustom = !commonMultipliers.contains(newMultiplier)
 
-        val id = recipeId
-        if (id == -1L) return
-
-        // Optimistic updates
+        // Optimistic updates so the UI doesn't have to wait for the DB
         if (isValid) {
-            _multiplierOverride.value = newMultiplier
-
-            if (!isCommon) {
-                _customMultiplierInput.value = input
+            _optimisticMultiplierState.update { currentState ->
+                OptimisticMultiplier(
+                    multiplier = newMultiplier,
+                    customMultiplier = if (isCustom) newMultiplier else currentState?.customMultiplier,
+                    customMultiplierInput = if (isCustom) input else currentState?.customMultiplierInput
+                )
             }
         }
 
-        viewModelScope.launch {
-            if (isValid) {
-                repository.updateRecipeMultiplier(id, newMultiplier)
+        // Cancel the previous job if it's still running.
+        // This is relevant when the user enters a custom value, but immediately
+        // taps a common chip. We want to save the custom, but cancel the update
+        // to the multiplier. A second call will update the multiplier to the
+        // common chip value.
+        _updateMultiplierJob?.cancel()
 
-                if (!isCommon) {
-                    repository.updateRecipeCustomMultiplier(id, newMultiplier)
-                    // Note: don't need to update _customMultiplierInput.value here
-                    // because it's handled by the flow
+        _updateMultiplierJob = viewModelScope.launch {
+            // We want to handle custom even if the job is cancelled
+            withContext(NonCancellable) {
+                if (isCustom){
+                    if (isValid) {
+                        // Valid custom input
+                        repository.updateRecipeCustomMultiplier(recipeId, newMultiplier)
+                    }
+                    else {
+                        // Invalid input
+                        if (input == "") {
+                            // The custom was blanked out, but after that nothing will be selected.
+                            // Reset the multiplier/custom to the default.
+                            repository.resetMultipliers(recipeId)
+                        } else {
+                            // The custom was invalid. We nullify the optimistic state
+                            // and trigger a call to the sync state. This has the effect
+                            // of reverting to the previous value.
+                            _optimisticMultiplierState.update { null }
+                            _syncMultiplierTrigger.value = System.currentTimeMillis()
+                        }
+                    }
                 }
-                // Else, leave the custom multiplier alone!
             }
-            else {
-                // The new multiplier is not valid (and we assume it must be a custom-entered one),
-                // so blank out the custom.
-                repository.updateRecipeCustomMultiplier(id, null)
 
-                // Note: DO need to update _customMultiplierInput.value here, because
-                // if it's already null, it's not a change and won't trigger the update
-                _customMultiplierInput.value = ""
+            // This will be cancelled if updateMultiplier is called a second time
+            if (isValid) {
+                repository.updateRecipeMultiplier(recipeId, newMultiplier)
             }
         }
     }
-}
-
-// Helper to keep the ViewModel clean
-fun RecipeWithIngredients.toDraft(): RecipeDraft {
-    return RecipeDraft(
-        id = recipe.id,
-        name = recipe.name,
-        flourWeight = recipe.totalFlourAmount.toString(),
-        yield = recipe.yield,
-        createdTimestamp = recipe.createdTimestamp,
-        ingredients = ingredients.map { ing ->
-            IngredientDraft(
-                id = ing.id,
-                name = ing.name,
-                percentage = ing.bakersPercent.toString(),
-                type = ing.type
-            )
-        }
-    )
 }
 
 // Note: the modern standard is DI with Koin or Hilt to alleviate the need to

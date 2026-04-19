@@ -42,13 +42,20 @@ class RecipePreferences(private val dataStore: DataStore<Preferences>) {
         }
     }
 
-    suspend fun saveCustomMultiplier(recipeId: Long, multiplier: Double?) {
+    suspend fun saveCustomMultiplier(recipeId: Long, customMultiplier: Double?) {
         dataStore.edit { preferences ->
-            if (multiplier != null) {
-                preferences[customMultiplierKey(recipeId)] = multiplier
+            if (customMultiplier != null) {
+                preferences[customMultiplierKey(recipeId)] = customMultiplier
             } else {
                 preferences.remove(customMultiplierKey(recipeId))
             }
+        }
+    }
+
+    suspend fun resetMultipliers(recipeId: Long) {
+        dataStore.edit { preferences ->
+            preferences[multiplierKey(recipeId)] = 1.0
+            preferences.remove(customMultiplierKey(recipeId))
         }
     }
 }

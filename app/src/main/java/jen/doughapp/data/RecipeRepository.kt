@@ -51,4 +51,8 @@ class RecipeRepository(
     suspend fun updateRecipeCustomMultiplier(recipeId: Long, newMultiplier: Double?) {
         preferences.saveCustomMultiplier(recipeId, newMultiplier)
     }
+
+    suspend fun resetMultipliers(recipeId: Long) {
+        preferences.resetMultipliers(recipeId)
+    }
 }
