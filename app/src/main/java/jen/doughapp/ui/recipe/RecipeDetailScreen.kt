@@ -1,5 +1,6 @@
 package jen.doughapp.ui.recipe
 
+import android.util.Log
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -87,16 +88,7 @@ fun RecipeDetailScreen(
         return
     }
 
-    // Multiplier that drives all the scale and weight calculations
-    val multiplier by viewModel.multiplier.collectAsStateWithLifecycle()
-
-    // The custom multiplier if there is one
-    val customMultiplier by viewModel.customMultiplier.collectAsStateWithLifecycle()
-
-    // The custom multiplier input text
-    val customMultiplierInput by viewModel.customMultiplierInput.collectAsStateWithLifecycle()
-
-    // A list of multipliers we want to make available for quick selection
+    // A list of common multipliers we want to make available for quick selection
     val commonMultipliers = listOf(
         0.5, 1.0, 1.5, 2.0
     )
@@ -113,7 +105,7 @@ fun RecipeDetailScreen(
         recipeName = uiState.recipe.name,
         recipeYield = uiState.recipe.yield,
         multiplier = uiState.multiplier,
-        customMultiplierInput = customMultiplierInput,
+        customMultiplierInput = uiState.customMultiplierInput,
         onMultiplierInputChange = onMultiplierInputChange,
         onCustomMultiplierInputChange = onCustomMultiplierInputChange,
         commonMultipliers = commonMultipliers,
@@ -122,11 +114,8 @@ fun RecipeDetailScreen(
         onBack = onBack,
         onLevainPlannerClick = {
             val rawStarter = getTotalIngredientType(uiState.displayIngredients, IngredientType.STARTER)
-            val scaledStarter = rawStarter * uiState.multiplier
-
-            // Limit to 2 decimal points
-            val starterStr = "%.2f".format(scaledStarter)
-            navController.navigate(LevainPlanner(overrideAmount = starterStr))
+            val starterAmount = (rawStarter * uiState.multiplier).formatAmount()
+            navController.navigate(LevainPlanner(overrideAmount = starterAmount))
         }
     )
 }
@@ -149,6 +138,7 @@ fun RecipeDetailContent(
 ) {
     val focusManager = LocalFocusManager.current
     val totalWeight = ingredients.sumOf { it.amount }
+    var isTotalWeightFocused by remember { mutableStateOf(false) }
 
     Column(
         modifier = modifier
@@ -161,7 +151,6 @@ fun RecipeDetailContent(
     ) {
         DoughTopAppBar("Recipe Detail", onBack)
 
-        //todo, lazycolumn?
         Column(
             modifier = Modifier
                 .padding(16.dp)
@@ -172,7 +161,6 @@ fun RecipeDetailContent(
                 text = recipeName,
                 style = MaterialTheme.typography.headlineLarge,
             )
-
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -279,6 +267,7 @@ fun RecipeDetailContent(
                                     imeAction = ImeAction.Done
                                 ),
                                 keyboardActions = KeyboardActions(
+                                    //todo, would commiting value here have a snappier feel?
                                     onDone = { focusManager.clearFocus() }
                                 ),
                                 cursorBrush = SolidColor(Red50),
@@ -310,12 +299,14 @@ fun RecipeDetailContent(
                                     //outside a decorationBox, is the idea
                                     .onFocusChanged { focusState ->
                                         // When focus is lost, commit the change
-                                        if (!focusState.isFocused) {
+                                        if (isTotalWeightFocused && !focusState.isFocused) {
                                             val parsed = localWeightText.toDoubleOrNull()
                                             if (parsed != null && totalWeight > 0) {
                                                 onMultiplierInputChange((parsed / totalWeight).toString())
                                             }
                                         }
+                                        isTotalWeightFocused = focusState.isFocused
+
                                     }
                                     .drawBehind {
                                         val strokeWidth = 2f
