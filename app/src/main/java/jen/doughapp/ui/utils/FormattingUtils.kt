@@ -10,6 +10,8 @@ fun Double.formatBakersPercentage(): String {
 }
 
 fun Double?.formatMultiplier(): String {
+    if (this == null) return ""
+
     // Display without trailing 0s, and without a decimal if it's a whole number
     val formattedNumber = "%.2f".format(this)
         .trimEnd('0')
